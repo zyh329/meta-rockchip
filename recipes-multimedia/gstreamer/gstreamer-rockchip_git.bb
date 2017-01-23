@@ -8,7 +8,6 @@ DEPENDS = "gstreamer1.0 gstreamer1.0-plugins-base mpp virtual/kernel virtual/egl
 SRCBRANCH ?= "master"
 SRCREV = "${AUTOREV}"
 SRC_URI = "git://github.com/rockchip-linux/gstreamer-rockchip.git;branch=${SRCBRANCH}"
-SRC_URI_append = " file://0001-yocto-remove-10bit-support.patch"
 
 S = "${WORKDIR}/git"
 
