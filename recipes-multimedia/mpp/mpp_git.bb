@@ -2,7 +2,8 @@
 # Released under the MIT license (see COPYING.MIT for the terms)
 
 DESCRIPTION = "Media Process Platform (MPP) module"
-LICENSE = "CLOSED"
+LICENSE = "MIT"
+LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384361b4de20420"
 SECTION = "multimedia"
 DEPENDS = "libdrm"
 
