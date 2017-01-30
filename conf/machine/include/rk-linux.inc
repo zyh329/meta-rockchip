@@ -1,5 +1,7 @@
 # Rockchip BSP default settings
 
+PREFERRED_VERSION_libdrm = "rk"
+
 PREFERRED_PROVIDER_virtual/egl = "mali-userspace"
 PREFERRED_PROVIDER_virtual/libgles1 = "mali-userspace"
 PREFERRED_PROVIDER_virtual/libgles2 = "mali-userspace"
