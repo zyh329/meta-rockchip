@@ -8,6 +8,8 @@ SRC_URI += "file://musl-arm-inb-outb.patch"
 
 S = "${WORKDIR}/git"
 
+PACKAGECONFIG_append = " glamor"
+
 # These extensions are now integrated into the server, so declare the migration
 # path for in-place upgrades.
 
