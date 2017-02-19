@@ -13,7 +13,7 @@ SRC_URI = "git://github.com/rockchip-linux/u-boot.git;branch=release;"
 SRCREV = "${AUTOREV}"
 S = "${WORKDIR}/git"
 
-do_deploy_prepend () {
+do_install_prepend () {
 	# copy to default search path
 	cp ${B}/spl/${SPL_BINARY} ${B}/
 }
