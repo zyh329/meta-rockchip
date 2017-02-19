@@ -1,4 +1,5 @@
 # Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd
+# Copyright (C) 2017 Trevor Woerner <twoerner@gmail.com>
 # Released under the MIT license (see COPYING.MIT for the terms)
 
 require recipes-bsp/u-boot/u-boot.inc
@@ -10,8 +11,9 @@ COMPATIBLE_MACHINE = "(rk3288)"
 
 SRC_URI = "git://github.com/rockchip-linux/u-boot.git;branch=release;"
 SRCREV = "${AUTOREV}"
+S = "${WORKDIR}/git"
 
-do_install_prepend () {
+do_deploy_prepend () {
 	# copy to default search path
 	cp ${B}/spl/${SPL_BINARY} ${B}/
 }
