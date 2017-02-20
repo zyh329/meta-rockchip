@@ -35,10 +35,15 @@ do_install () {
 	fi
 
 	ln -sf libmali.so ${D}/${libdir}/libEGL.so
+	ln -sf libmali.so ${D}/${libdir}/libEGL.so.1
 	ln -sf libmali.so ${D}/${libdir}/libGLESv1_CM.so
+	ln -sf libmali.so ${D}/${libdir}/libGLESv1_CM.so.1
 	ln -sf libmali.so ${D}/${libdir}/libGLESv2.so
+	ln -sf libmali.so ${D}/${libdir}/libGLESv2.so.2
 	ln -sf libmali.so ${D}/${libdir}/libOpenCL.so
+	ln -sf libmali.so ${D}/${libdir}/libOpenCL.so.1
 	ln -sf libmali.so ${D}/${libdir}/libgbm.so
+	ln -sf libmali.so ${D}/${libdir}/libgbm.so.1
 
 	if [ "${USE_WL}" = "yes" ]; then
 		ln -sf libmali.so ${D}/${libdir}/libwayland-egl.so
