@@ -32,6 +32,8 @@ do_install () {
 		install ${S}/x11/libmali.so ${D}/${libdir}
 	elif [ "${USE_WL}" = "yes" ]; then
 		install ${S}/wayland/libmali.so ${D}/${libdir}
+	else
+		install ${S}/gbm/libmali.so ${D}/${libdir}
 	fi
 
 	ln -sf libmali.so ${D}/${libdir}/libEGL.so
