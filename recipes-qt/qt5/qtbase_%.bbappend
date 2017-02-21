@@ -2,6 +2,7 @@
 # Released under the MIT license (see COPYING.MIT for the terms)
 
 PACKAGECONFIG_GL   = "gles2"
+PACKAGECONFIG_FONTS	= "fontconfig"
 
 PACKAGECONFIG_APPEND = "${@bb.utils.contains('DISTRO_FEATURES', 'x11', ' ', \
 								bb.utils.contains('DISTRO_FEATURES', 'wayland',	\
