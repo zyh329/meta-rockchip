@@ -14,7 +14,7 @@ PR = "r1"
 PV = "${LINUX_VERSION}"
 
 # Include only supported boards for now
-COMPATIBLE_MACHINE = "(rk3288)"
+COMPATIBLE_MACHINE = "(rk3288|rk3399)"
 deltask kernel_configme
 
 KBUILD_DEFCONFIG = "rockchip_linux_defconfig"
