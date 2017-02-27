@@ -36,6 +36,7 @@ IMAGE_DEPENDS_rockchip-gpt-img = "parted-native \
 	virtual/kernel:do_deploy \
 	virtual/bootloader:do_deploy"
 
+PER_CHIP_IMG_GENERATION_COMMAND_rk3036 = "generate_rk3036_image"
 PER_CHIP_IMG_GENERATION_COMMAND_rk3288 = "generate_rk3288_image"
 PER_CHIP_IMG_GENERATION_COMMAND_rk3399 = "generate_rk3399_image"
 
@@ -121,6 +122,15 @@ EOF
 
 	# Burn Rootfs Partition
 	dd if=${IMG_ROOTFS} of=${GPTIMG} seek=${ROOTFS_START}
+
+}
+
+generate_rk3036_image () {
+
+	# Burn bootloader
+	mkimage -n rk3036 -T rksd -d ${DEPLOY_DIR_IMAGE}/${SPL_BINARY} ${WORKDIR}/${UBOOT}
+	cat ${DEPLOY_DIR_IMAGE}/u-boot-${MACHINE}.bin >>  ${WORKDIR}/${UBOOT}
+	dd if=${WORKDIR}/${UBOOT} of=${GPTIMG} conv=notrunc,fsync seek=64
 
 }
 
