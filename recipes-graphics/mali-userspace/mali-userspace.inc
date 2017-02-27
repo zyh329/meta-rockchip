@@ -1,5 +1,5 @@
-SUMMARY = "Userspace mali driver for Midgard-T76x"
-DESCRIPTION = "Userspace mali driver for Midgard-T76x"
+SUMMARY = "Userspace mali driver"
+DESCRIPTION = "Userspace mali driver"
 LICENSE = "CLOSED"
 SECTION = "libs"
 
