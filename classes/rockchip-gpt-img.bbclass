@@ -37,6 +37,7 @@ IMAGE_DEPENDS_rockchip-gpt-img = "parted-native \
 	virtual/bootloader:do_deploy"
 
 PER_CHIP_IMG_GENERATION_COMMAND_rk3288 = "generate_rk3288_image"
+PER_CHIP_IMG_GENERATION_COMMAND_rk3399 = "generate_rk3399_image"
 
 IMAGE_CMD_rockchip-gpt-img () {
 	# Change to image directory
@@ -126,6 +127,15 @@ generate_rk3288_image () {
 
 	# Burn bootloader
 	mkimage -n rk3288 -T rksd -d ${DEPLOY_DIR_IMAGE}/${SPL_BINARY} ${WORKDIR}/${UBOOT}
+	cat ${DEPLOY_DIR_IMAGE}/u-boot-${MACHINE}.bin >>  ${WORKDIR}/${UBOOT}
+	dd if=${WORKDIR}/${UBOOT} of=${GPTIMG} conv=notrunc,fsync seek=64
+
+}
+
+generate_rk3399_image () {
+
+	# Burn bootloader
+	mkimage -n rk3399 -T rksd -d ${DEPLOY_DIR_IMAGE}/${SPL_BINARY} ${WORKDIR}/${UBOOT}
 	cat ${DEPLOY_DIR_IMAGE}/u-boot-${MACHINE}.bin >>  ${WORKDIR}/${UBOOT}
 	dd if=${WORKDIR}/${UBOOT} of=${GPTIMG} conv=notrunc,fsync seek=64
 

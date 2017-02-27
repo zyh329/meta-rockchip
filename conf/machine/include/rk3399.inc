@@ -3,7 +3,7 @@
 
 SOC_FAMILY = "rk3399"
 
-require conf/machine/include/tune-cortexa53.inc
+require conf/machine/include/arm/arch-armv8.inc
 require conf/machine/include/soc-family.inc
 
 PREFERRED_PROVIDER_virtual/kernel = "linux"
