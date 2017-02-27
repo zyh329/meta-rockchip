@@ -5,6 +5,7 @@ SECTION = "libs"
 
 DEPENDS = "libdrm"
 DEPENDS += "${@bb.utils.contains("DISTRO_FEATURES", "wayland", " mesa", " ", d)}"
+DEPENDS += "${@bb.utils.contains("DISTRO_FEATURES", "x11", " mesa", " ", d)}"
 
 PROVIDES += "virtual/egl virtual/libgles1 virtual/libgles2 virtual/libopencl libgbm"
 PROVIDES += "${@bb.utils.contains("DISTRO_FEATURES", "wayland", " virtual/libwayland-egl", " ", d)}"
