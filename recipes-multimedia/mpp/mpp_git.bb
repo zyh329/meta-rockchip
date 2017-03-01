@@ -7,7 +7,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384
 SECTION = "multimedia"
 DEPENDS = "libdrm"
 
-SRCBRANCH ?= "rk3288_linux"
+SRCBRANCH ?= "master"
 SRCREV = "${AUTOREV}"
 SRC_URI = "git://github.com/rockchip-linux/mpp.git;branch=${SRCBRANCH}"
 
