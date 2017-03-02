@@ -3,7 +3,9 @@
 
 require recipes-kernel/linux/linux-yocto.inc
 
-SRC_URI = "git://github.com/rockchip-linux/kernel.git;branch=release-3.10;"
+SRC_URI = "git://github.com/rockchip-linux/kernel.git;branch=release-3.10 \
+	file://0001-fix-yocto-build-error.patch \
+"
 
 SRCREV = "${AUTOREV}"
 LINUX_VERSION = "3.10.104"
