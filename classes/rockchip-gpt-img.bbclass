@@ -11,10 +11,11 @@ IMG_ROOTFS = "${IMGDEPLOYDIR}/${IMAGE_NAME}.rootfs.${IMG_ROOTFS_TYPE}"
 # This image depends on the rootfs image
 IMAGE_TYPEDEP_rockchip-gpt-img = "${IMG_ROOTFS_TYPE}"
 
-GPTIMG_SUFFIX  = "gpt-img"
-GPTIMG         = "${IMAGE_NAME}.${GPTIMG_SUFFIX}"
+GPTIMG         = "${IMAGE_NAME}-gpt.img"
+GPTIMG_SYMLK   = "${IMAGE_BASENAME}-${MACHINE}-gpt.img"
 GPTIMG_SIZE   ?= "4096"
 BOOT_IMG       = "boot.img"
+BOOTIMG_SYMLK  = "${IMAGE_BASENAME}-${MACHINE}-${BOOT_IMG}"
 MINILOADER     = "loader.bin"
 UBOOT          = "u-boot.out"
 TRUST          = "trust.out"
@@ -36,23 +37,32 @@ IMAGE_DEPENDS_rockchip-gpt-img = "parted-native \
 	virtual/kernel:do_deploy \
 	virtual/bootloader:do_deploy"
 
-PER_CHIP_IMG_GENERATION_COMMAND_rk3036 = "generate_rk3036_image"
-PER_CHIP_IMG_GENERATION_COMMAND_rk3288 = "generate_rk3288_image"
+PER_CHIP_IMG_GENERATION_COMMAND_rk3036 = "generate_rk3036_loader1_image"
+PER_CHIP_IMG_GENERATION_COMMAND_rk3288 = "generate_rk3288_loader1_image"
 PER_CHIP_IMG_GENERATION_COMMAND_rk3399 = "generate_rk3399_image"
 
 IMAGE_CMD_rockchip-gpt-img () {
 	# Change to image directory
 	cd ${DEPLOY_DIR_IMAGE}
 
-	# Remove the exist image
-	rm -rf *${GPTIMG_SUFFIX}
+	# Remove the existing image symlinks
+	rm -f "${GPTIMG_SYMLK}"
+	rm -f "${BOOTIMG_SYMLK}"
 
 	create_rk_image
 
 	${PER_CHIP_IMG_GENERATION_COMMAND}
 
 	cd ${DEPLOY_DIR_IMAGE}
-	ln -s ${GPTIMG} "${IMAGE_BASENAME}-${MACHINE}.${GPTIMG_SUFFIX}"
+	ln -s ${GPTIMG} ${GPTIMG_SYMLK}
+
+	# create per-build boot.img with symlink
+	cd ${DEPLOY_DIR_IMAGE}
+	rm -f ${IMAGE_NAME}-boot.img
+	if [ -f ${WORKDIR}/${BOOT_IMG} ]; then
+		cp ${WORKDIR}/${BOOT_IMG} ${IMAGE_NAME}-boot.img
+	fi
+	ln -s ${IMAGE_NAME}-boot.img ${BOOTIMG_SYMLK}
 }
 
 create_rk_image () {
@@ -125,7 +135,7 @@ EOF
 
 }
 
-generate_rk3036_image () {
+generate_rk3036_loader1_image () {
 
 	# Burn bootloader
 	mkimage -n rk3036 -T rksd -d ${DEPLOY_DIR_IMAGE}/${SPL_BINARY} ${WORKDIR}/${UBOOT}
@@ -134,7 +144,7 @@ generate_rk3036_image () {
 
 }
 
-generate_rk3288_image () {
+generate_rk3288_loader1_image () {
 
 	# Burn bootloader
 	mkimage -n rk3288 -T rksd -d ${DEPLOY_DIR_IMAGE}/${SPL_BINARY} ${WORKDIR}/${UBOOT}
