@@ -1,0 +1,37 @@
+From 1dd7346f3f50a3d7bc70a52cf7853be0d532bc9a Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Sat, 28 Nov 2015 12:09:47 +0000
+Subject: [PATCH 09/94] compositor-drm: Comment struct members
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Clarify the difference between crtc_id (DRM object) and pipe (index into
+drmModeRes->crtcs array, possible_crtcs bitmask).
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Quentin Glidic <sardemff7+git@sardemff7.net>
+Reviewed-by: Armin Krezović <krezovic.armin@gmail.com>
+Differential Revision: https://phabricator.freedesktop.org/D1405
+---
+ src/compositor-drm.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 65dda72..c964262 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -162,8 +162,8 @@ struct drm_edid {
+ struct drm_output {
+ 	struct weston_output   base;
+ 
+-	uint32_t crtc_id;
+-	int pipe;
++	uint32_t crtc_id; /* object ID to pass to DRM functions */
++	int pipe; /* index of CRTC in resource array / bitmasks */
+ 	uint32_t connector_id;
+ 	drmModeCrtcPtr original_crtc;
+ 	struct drm_edid edid;
+-- 
+1.9.1
+

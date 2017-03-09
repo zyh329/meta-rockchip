@@ -1,0 +1,95 @@
+From 17a9d8510bce37d00464fce3128f9a0ffc42358c Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Thu, 9 Feb 2017 13:49:15 +0000
+Subject: [PATCH 20/94] compositor-drm: Remove crtc_allocator
+
+crtc_allocator was used as a bitmask of CRTC IDs, so we didn't try to
+use the same CRTC for multiple outputs. Unfortunately, this only works
+to the extent that CRTC object IDs fit within the bitmask; though they
+were previously, they are not guaranteed to be under 32 or even 64.
+
+Replace the only use of crtc_allocator with a list walk across outputs.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Quentin Glidic <sardemff7+git@sardemff7.net>
+Reported-by: Peter Senna Tschudin <peter.senna@collabora.com>
+---
+ src/compositor-drm.c | 27 ++++++++++++++++++++-------
+ 1 file changed, 20 insertions(+), 7 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 0f4bc9d..984e4ad 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -92,7 +92,6 @@ struct drm_backend {
+ 		char *filename;
+ 	} drm;
+ 	struct gbm_device *gbm;
+-	uint32_t crtc_allocator;
+ 	uint32_t connector_allocator;
+ 	struct wl_listener session_listener;
+ 	uint32_t gbm_format;
+@@ -245,6 +244,19 @@ drm_sprite_crtc_supported(struct drm_output *output, struct drm_sprite *sprite)
+ 	return !!(sprite->possible_crtcs & (1 << output->pipe));
+ }
+ 
++static struct drm_output *
++drm_output_find_by_crtc(struct drm_backend *b, uint32_t crtc_id)
++{
++	struct drm_output *output;
++
++	wl_list_for_each(output, &b->compositor->output_list, base.link) {
++		if (output->crtc_id == crtc_id)
++			return output;
++	}
++
++	return NULL;
++}
++
+ static void
+ drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
+ {
+@@ -1391,7 +1403,6 @@ drm_output_destroy(struct weston_output *output_base)
+ 		       &output->connector_id, 1, &origcrtc->mode);
+ 	drmModeFreeCrtc(origcrtc);
+ 
+-	b->crtc_allocator &= ~(1 << output->crtc_id);
+ 	b->connector_allocator &= ~(1 << output->connector_id);
+ 
+ 	if (b->use_pixman)
+@@ -1865,9 +1876,13 @@ find_crtc_for_connector(struct drm_backend *b,
+ 		drmModeFreeEncoder(encoder);
+ 
+ 		for (i = 0; i < resources->count_crtcs; i++) {
+-			if (possible_crtcs & (1 << i) &&
+-			    !(b->crtc_allocator & (1 << resources->crtcs[i])))
+-				return i;
++			if (!(possible_crtcs & (1 << i)))
++				continue;
++
++			if (drm_output_find_by_crtc(b, resources->crtcs[i]))
++				continue;
++
++			return i;
+ 		}
+ 	}
+ 
+@@ -2405,7 +2420,6 @@ create_output_for_connector(struct drm_backend *b,
+ 
+ 	output->crtc_id = resources->crtcs[i];
+ 	output->pipe = i;
+-	b->crtc_allocator |= (1 << output->crtc_id);
+ 	output->connector_id = connector->connector_id;
+ 	b->connector_allocator |= (1 << output->connector_id);
+ 
+@@ -2512,7 +2526,6 @@ err_free:
+ 	}
+ 
+ 	drmModeFreeCrtc(output->original_crtc);
+-	b->crtc_allocator &= ~(1 << output->crtc_id);
+ 	b->connector_allocator &= ~(1 << output->connector_id);
+ 	free(output);
+ 	free(config.modeline);
+-- 
+1.9.1
+

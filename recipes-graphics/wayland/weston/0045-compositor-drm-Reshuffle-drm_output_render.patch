@@ -1,0 +1,45 @@
+From 4c2505ada57f5a2a40a4867692b0b74a53c53704 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Tue, 1 Nov 2016 21:43:39 +0000
+Subject: [PATCH 45/94] compositor-drm: Reshuffle drm_output_render
+
+Call drm_output_render unconditionally, doing an early exit if we're
+already rendering a client buffer on the primary plane, and asserting
+for damage on the way out.
+
+Differential Revision: https://phabricator.freedesktop.org/D1494
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+---
+ src/compositor-drm.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index c771ea8..a3051de 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -684,6 +684,11 @@ drm_output_render(struct drm_output *output, pixman_region32_t *damage)
+ 	struct weston_compositor *c = output->base.compositor;
+ 	struct drm_backend *b = to_drm_backend(c);
+ 
++	/* If we already have a client buffer promoted to scanout, then we don't
++	 * want to render. */
++	if (output->fb_pending)
++		return;
++
+ 	if (b->use_pixman)
+ 		drm_output_render_pixman(output, damage);
+ 	else
+@@ -755,8 +760,7 @@ drm_output_repaint(struct weston_output *output_base,
+ 	if (output->destroy_pending)
+ 		return -1;
+ 
+-	if (!output->fb_pending)
+-		drm_output_render(output, damage);
++	drm_output_render(output, damage);
+ 	if (!output->fb_pending)
+ 		return -1;
+ 
+-- 
+1.9.1
+

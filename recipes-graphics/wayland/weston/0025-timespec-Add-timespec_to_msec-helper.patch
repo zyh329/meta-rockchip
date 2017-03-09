@@ -1,0 +1,73 @@
+From c237d0ad2feab3ff594a358297cfed8deef321b1 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Mon, 30 Jan 2017 18:42:06 +0000
+Subject: [PATCH 25/94] timespec: Add timespec_to_msec helper
+
+Paralleling timespec_to_nsec, converts to milliseconds.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+---
+ shared/timespec-util.h | 11 +++++++++++
+ src/compositor.c       |  2 +-
+ tests/timespec-test.c  |  9 +++++++++
+ 3 files changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/shared/timespec-util.h b/shared/timespec-util.h
+index 13948b1..c8e3cd6 100644
+--- a/shared/timespec-util.h
++++ b/shared/timespec-util.h
+@@ -93,6 +93,17 @@ timespec_to_nsec(const struct timespec *a)
+ 	return (int64_t)a->tv_sec * NSEC_PER_SEC + a->tv_nsec;
+ }
+ 
++/* Convert timespec to milliseconds
++ *
++ * \param a timespec
++ * \return milliseconds
++ */
++static inline int64_t
++timespec_to_msec(const struct timespec *a)
++{
++	return (int64_t)a->tv_sec * 1000 + a->tv_nsec / 1000000;
++}
++
+ /* Convert milli-Hertz to nanoseconds
+  *
+  * \param mhz frequency in mHz, not zero
+diff --git a/src/compositor.c b/src/compositor.c
+index b6ef7f3..c4d515b 100644
+--- a/src/compositor.c
++++ b/src/compositor.c
+@@ -2458,7 +2458,7 @@ weston_output_finish_frame(struct weston_output *output,
+ 						  output->msc,
+ 						  presented_flags);
+ 
+-	output->frame_time = stamp->tv_sec * 1000 + stamp->tv_nsec / 1000000;
++	output->frame_time = timespec_to_msec(stamp);
+ 
+ 	weston_compositor_read_presentation_clock(compositor, &now);
+ 	timespec_sub(&gone, &now, stamp);
+diff --git a/tests/timespec-test.c b/tests/timespec-test.c
+index cd3b1c1..712d1ac 100644
+--- a/tests/timespec-test.c
++++ b/tests/timespec-test.c
+@@ -60,6 +60,15 @@ ZUC_TEST(timespec_test, timespec_to_nsec)
+ 	ZUC_ASSERT_EQ(timespec_to_nsec(&a), (NSEC_PER_SEC * 4ULL) + 4);
+ }
+ 
++ZUC_TEST(timespec_test, timespec_to_msec)
++{
++	struct timespec a;
++
++	a.tv_sec = 4;
++	a.tv_nsec = 4000000;
++	ZUC_ASSERT_EQ(timespec_to_msec(&a), (4000ULL) + 4);
++}
++
+ ZUC_TEST(timespec_test, millihz_to_nsec)
+ {
+ 	ZUC_ASSERT_EQ(millihz_to_nsec(60000), 16666666);
+-- 
+1.9.1
+

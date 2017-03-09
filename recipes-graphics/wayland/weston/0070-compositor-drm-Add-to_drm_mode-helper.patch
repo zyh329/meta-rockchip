@@ -1,0 +1,43 @@
+From 17954a356b1386f6e9dbd77bd4ffc286a5f709cf Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Wed, 16 Nov 2016 11:51:27 +0000
+Subject: [PATCH 70/94] compositor-drm: Add to_drm_mode helper
+
+Much like we already have to_drm_output and to_drm_backend.
+
+Differential Revision: https://phabricator.freedesktop.org/D1505
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+---
+ src/compositor-drm.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index ed89859..a7e719c 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -448,6 +448,12 @@ to_drm_backend(struct weston_compositor *base)
+ 	return container_of(base->backend, struct drm_backend, base);
+ }
+ 
++static inline struct drm_mode *
++to_drm_mode(struct weston_mode *base)
++{
++	return container_of(base, struct drm_mode, base);
++}
++
+ /**
+  * Get the current value of a KMS property
+  *
+@@ -1751,7 +1757,7 @@ drm_output_apply_state(struct drm_output_state *state)
+ 	assert(scanout_state->src_w == scanout_state->dest_w << 16);
+ 	assert(scanout_state->src_h == scanout_state->dest_h << 16);
+ 
+-	mode = container_of(output->base.current_mode, struct drm_mode, base);
++	mode = to_drm_mode(output->base.current_mode);
+ 	if (!scanout_plane->state_cur->fb ||
+ 	    scanout_plane->state_cur->fb->stride != scanout_state->fb->stride) {
+ 		ret = drmModeSetCrtc(backend->drm.fd, output->crtc_id,
+-- 
+1.9.1
+

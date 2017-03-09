@@ -19,11 +19,11 @@ index c4f7660..9bae1be 100644
  			printf(" RGB565");
  			break;
 +		case WL_SHM_FORMAT_YUV420:
-+                        printf(" YUV420");
-+                        break;
++                        		printf(" YUV420");
++                        		break;
 +		case WL_SHM_FORMAT_NV12:
-+                        printf(" NV12");
-+                        break;
++                        		printf(" NV12");
++                        		break;
  		default:
  			printf(" unknown(%08x)", format->format);
  			break;

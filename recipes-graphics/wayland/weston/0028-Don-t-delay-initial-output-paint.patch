@@ -1,0 +1,68 @@
+From 1aae3230de63aba26c7e0d4c5c3723ae02b0924a Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Mon, 16 Jan 2017 17:23:58 +0000
+Subject: [PATCH 28/94] Don't delay initial output paint
+
+On startup, we cannot lock on to the repaint timer because it is unknown
+to us. We deal with this by claiming that the moment of entry into the
+repaint loop is the moment a frame returned, causing finish_frame to
+delay our initial repaint to (refresh_time - repaint_delay), typically
+around 9ms of utterly wasted time.
+
+Add an explicit stamp == NULL, to determine that we are just beginning
+our repaint loop, that the timings are in fact totally invalid, and that
+it would be beneficial to repaint the output immediately. This will only
+trigger when the display had previously been disabled or the previous
+state is unknown, e.g. at startup, or coming back from DPMS off.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+---
+ src/compositor-drm.c | 3 +--
+ src/compositor.c     | 9 +++++++++
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 3666c37..31e0ef1 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -856,8 +856,7 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
+ 
+ finish_frame:
+ 	/* if we cannot page-flip, immediately finish frame */
+-	weston_compositor_read_presentation_clock(output_base->compositor, &ts);
+-	weston_output_finish_frame(output_base, &ts,
++	weston_output_finish_frame(output_base, NULL,
+ 				   WP_PRESENTATION_FEEDBACK_INVALID);
+ }
+ 
+diff --git a/src/compositor.c b/src/compositor.c
+index e85dcac..1afd0a5 100644
+--- a/src/compositor.c
++++ b/src/compositor.c
+@@ -2453,6 +2453,14 @@ weston_output_finish_frame(struct weston_output *output,
+ 	TL_POINT("core_repaint_finished", TLP_OUTPUT(output),
+ 		 TLP_VBLANK(stamp), TLP_END);
+ 
++	assert(stamp || (presented_flags & WP_PRESENTATION_FEEDBACK_INVALID));
++
++	/* If we haven't been supplied any timestamp at all, we don't have a
++	 * timebase to work against, so any delay just wastes time. Push a
++	 * repaint as soon as possible so we can get on with it. */
++	if (!stamp)
++		goto out;
++
+ 	refresh_nsec = millihz_to_nsec(output->current_mode->refresh);
+ 	weston_presentation_feedback_present_list(&output->feedback_list,
+ 						  output, refresh_nsec, stamp,
+@@ -2485,6 +2493,7 @@ weston_output_finish_frame(struct weston_output *output,
+ 	if (presented_flags == WP_PRESENTATION_FEEDBACK_INVALID && msec_rel < 0)
+ 		msec_rel += refresh_nsec / 1000000;
+ 
++out:
+ 	if (msec_rel < 1)
+ 		output_repaint_timer_handler(output);
+ 	else
+-- 
+1.9.1
+

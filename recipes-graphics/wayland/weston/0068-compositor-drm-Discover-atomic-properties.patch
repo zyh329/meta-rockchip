@@ -1,0 +1,188 @@
+From 6d0e6a5a87a34e4173d32d6b99c9c15a1738eb80 Mon Sep 17 00:00:00 2001
+From: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+Date: Tue, 15 Nov 2016 22:07:49 +0000
+Subject: [PATCH 68/94] compositor-drm: Discover atomic properties
+
+Set the atomic client cap, where it exists, and use this to discover the
+plane/CRTC/connector properties we require for atomic modesetting.
+
+Differential Revision: https://phabricator.freedesktop.org/D1503
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Co-authored-by: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+---
+ configure.ac         |  3 +++
+ src/compositor-drm.c | 73 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 76 insertions(+)
+
+diff --git a/configure.ac b/configure.ac
+index 97a7769..b8997d9 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -175,6 +175,9 @@ AM_CONDITIONAL(ENABLE_DRM_COMPOSITOR, test x$enable_drm_compositor = xyes)
+ if test x$enable_drm_compositor = xyes; then
+   AC_DEFINE([BUILD_DRM_COMPOSITOR], [1], [Build the DRM compositor])
+   PKG_CHECK_MODULES(DRM_COMPOSITOR, [libudev >= 136 libdrm >= 2.4.30 gbm mtdev >= 1.1.0])
++  PKG_CHECK_MODULES(DRM_COMPOSITOR_ATOMIC, [libdrm >= 2.4.62],
++		    [AC_DEFINE([HAVE_DRM_ATOMIC], 1, [libdrm supports atomic API])],
++		    [AC_MSG_WARN([libdrm does not support atomic modesetting, will omit that capability])])
+   PKG_CHECK_MODULES(DRM_COMPOSITOR_GBM, [gbm >= 10.2],
+ 		    [AC_DEFINE([HAVE_GBM_FD_IMPORT], 1, [gbm supports dmabuf import])],
+ 		    [AC_MSG_WARN([gbm does not support dmabuf import, will omit that capability])])
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index aec1741..ae6cdfe 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -93,6 +93,16 @@
+  */
+ enum wdrm_plane_property {
+ 	WDRM_PLANE_TYPE = 0,
++	WDRM_PLANE_SRC_X,
++	WDRM_PLANE_SRC_Y,
++	WDRM_PLANE_SRC_W,
++	WDRM_PLANE_SRC_H,
++	WDRM_PLANE_CRTC_X,
++	WDRM_PLANE_CRTC_Y,
++	WDRM_PLANE_CRTC_W,
++	WDRM_PLANE_CRTC_H,
++	WDRM_PLANE_FB_ID,
++	WDRM_PLANE_CRTC_ID,
+ 	WDRM_PLANE__COUNT
+ };
+ 
+@@ -112,6 +122,7 @@ enum wdrm_plane_type {
+ enum wdrm_connector_property {
+ 	WDRM_CONNECTOR_EDID = 0,
+ 	WDRM_CONNECTOR_DPMS,
++	WDRM_CONNECTOR_CRTC_ID,
+ 	WDRM_CONNECTOR__COUNT
+ };
+ 
+@@ -145,6 +156,15 @@ struct drm_property_info {
+ };
+ 
+ /**
++ * List of properties attached to DRM CRTCs
++ */
++enum wdrm_crtc_property {
++	WDRM_CRTC_MODE_ID = 0,
++	WDRM_CRTC_ACTIVE,
++	WDRM_CRTC__COUNT
++};
++
++/**
+  * Mode for drm_output_state_duplicate.
+  */
+ enum drm_output_state_duplicate_mode {
+@@ -197,6 +217,7 @@ struct drm_backend {
+ 	int cursors_are_broken;
+ 
+ 	bool universal_planes;
++	bool atomic_modeset;
+ 
+ 	int use_pixman;
+ 
+@@ -207,6 +228,9 @@ struct drm_backend {
+ 	/* Holds the properties for connectors */
+ 	struct drm_property_info props_conn[WDRM_CONNECTOR__COUNT];
+ 
++	/* Holds the properties for CRTCs */
++	struct drm_property_info props_crtc[WDRM_CRTC__COUNT];
++
+ 	int32_t cursor_width;
+ 	int32_t cursor_height;
+ 
+@@ -2834,6 +2858,13 @@ init_drm(struct drm_backend *b, struct udev_device *device)
+ 	weston_log("DRM: %s universal planes\n",
+ 		   b->universal_planes ? "supports" : "does not support");
+ 
++#ifdef HAVE_DRM_ATOMIC
++	ret = drmSetClientCap(b->drm.fd, DRM_CLIENT_CAP_ATOMIC, 1);
++	b->atomic_modeset = (ret == 0);
++#endif
++	weston_log("DRM: %s atomic modesetting\n",
++		   b->atomic_modeset ? "supports" : "does not support");
++
+ 	return 0;
+ }
+ 
+@@ -3122,6 +3153,16 @@ create_sprites(struct drm_backend *b)
+ 			.enum_values = plane_type_enums,
+ 			.num_enum_values = WDRM_PLANE_TYPE__COUNT,
+ 		},
++		[WDRM_PLANE_SRC_X] = { .name = "SRC_X", },
++		[WDRM_PLANE_SRC_Y] = { .name = "SRC_Y", },
++		[WDRM_PLANE_SRC_W] = { .name = "SRC_W", },
++		[WDRM_PLANE_SRC_H] = { .name = "SRC_H", },
++		[WDRM_PLANE_CRTC_X] = { .name = "CRTC_X", },
++		[WDRM_PLANE_CRTC_Y] = { .name = "CRTC_Y", },
++		[WDRM_PLANE_CRTC_W] = { .name = "CRTC_W", },
++		[WDRM_PLANE_CRTC_H] = { .name = "CRTC_H", },
++		[WDRM_PLANE_FB_ID] = { .name = "FB_ID", },
++		[WDRM_PLANE_CRTC_ID] = { .name = "CRTC_ID", },
+ 	};
+ 
+ 	if (!drm_property_info_copy(b->props_plane, plane_props,
+@@ -4147,6 +4188,7 @@ create_outputs(struct drm_backend *b, uint32_t option_connector,
+ 	static const struct drm_property_info connector_props[] = {
+ 		[WDRM_CONNECTOR_EDID] = { .name = "EDID" },
+ 		[WDRM_CONNECTOR_DPMS] = { .name = "DPMS" },
++		[WDRM_CONNECTOR_CRTC_ID] = { .name = "CRTC_ID", },
+ 	};
+ 
+ 	if (!drm_property_info_copy(b->props_conn, connector_props,
+@@ -4155,6 +4197,22 @@ create_outputs(struct drm_backend *b, uint32_t option_connector,
+ 		return -1;
+ 	}
+ 
++	static const struct drm_property_info crtc_props[] = {
++		[WDRM_CRTC_MODE_ID] = { .name = "MODE_ID", },
++		[WDRM_CRTC_ACTIVE] = { .name = "ACTIVE", },
++	};
++
++	if (!drm_property_info_copy(b->props_crtc, crtc_props,
++				    WDRM_CRTC__COUNT)) {
++		weston_log("failed to copy CRTC properties\n");
++		return -1;
++	}
++	if (!drm_property_info_copy(b->props_conn, connector_props,
++				    WDRM_CONNECTOR__COUNT)) {
++		weston_log("failed to copy connector properties\n");
++		return -1;
++	}
++
+ 	resources = drmModeGetResources(b->drm.fd);
+ 	if (!resources) {
+ 		weston_log("drmModeGetResources failed\n");
+@@ -4166,6 +4224,20 @@ create_outputs(struct drm_backend *b, uint32_t option_connector,
+ 	b->min_height = resources->min_height;
+ 	b->max_height = resources->max_height;
+ 
++	for (i = 0; i < resources->count_crtcs; i++) {
++		drmModeObjectPropertiesPtr props;
++
++		props = drmModeObjectGetProperties(b->drm.fd,
++						   resources->crtcs[i],
++						   DRM_MODE_OBJECT_CRTC);
++		if (!props)
++			continue;
++
++		drm_property_info_update(b, b->props_crtc, WDRM_CRTC__COUNT,
++					 props);
++		drmModeFreeObjectProperties(props);
++	}
++
+ 	for (i = 0; i < resources->count_connectors; i++) {
+ 		drmModeObjectPropertiesPtr props;
+ 		int ret;
+@@ -4355,6 +4427,7 @@ drm_destroy(struct weston_compositor *ec)
+ 	wl_event_source_remove(b->drm_source);
+ 
+ 	drm_property_info_free(b->props_conn, WDRM_CONNECTOR__COUNT);
++	drm_property_info_free(b->props_crtc, WDRM_CRTC__COUNT);
+ 
+ 	destroy_sprites(b);
+ 
+-- 
+1.9.1
+

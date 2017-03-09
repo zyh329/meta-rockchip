@@ -1,0 +1,81 @@
+From b187ee9069239380a95ab5c24ab87dfeb0af348e Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Tue, 29 Nov 2016 21:03:44 +0000
+Subject: [PATCH 88/94] compositor-drm: Ignore views on other outputs
+
+When we come to assign_planes, try very hard to ignore views which are
+only visible on other outputs, rather than forcibly moving them to the
+primary plane, which causes damage all round and unnecessary repaints.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1530
+---
+ src/compositor-drm.c | 24 +++++++++++++++---------
+ 1 file changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 70ea1a8..6ddf84f 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -1320,10 +1320,6 @@ drm_fb_get_from_view(struct drm_output_state *state, struct weston_view *ev)
+ 	struct linux_dmabuf_buffer *dmabuf;
+ 	struct drm_fb *fb;
+ 
+-	/* Don't import buffers which span multiple outputs. */
+-	if (ev->output_mask != (1u << output->base.id))
+-		return NULL;
+-
+ 	if (ev->alpha != 1.0f)
+ 		return NULL;
+ 
+@@ -2686,10 +2682,6 @@ drm_output_prepare_cursor_view(struct drm_output_state *output_state,
+ 	if (plane->state_cur->output && plane->state_cur->output != output)
+ 		return NULL;
+ 
+-	/* Don't import buffers which span multiple outputs. */
+-	if (ev->output_mask != (1u << output->base.id))
+-		return NULL;
+-
+ 	/* We use GBM to import SHM buffers. */
+ 	if (b->gbm == NULL)
+ 		return NULL;
+@@ -2849,13 +2841,22 @@ drm_output_propose_state(struct weston_output *output_base,
+ 	wl_list_for_each(ev, &output_base->compositor->view_list, link) {
+ 		struct weston_plane *next_plane = NULL;
+ 
++		/* If this view doesn't touch our output at all, there's no
++		 * reason to do anything with it. */
++		if (!(ev->output_mask & (1u << output->base.id)))
++			continue;
++
++		/* We only assign planes to views which are exclusively present
++		 * on our output. */
++		if (ev->output_mask != (1u << output->base.id))
++			next_plane = primary;
++
+ 		/* Since we process views from top to bottom, we know that if
+ 		 * the view intersects the calculated renderer region, it must
+ 		 * be part of, or occluded by, it, and cannot go on a plane. */
+ 		pixman_region32_init(&surface_overlap);
+ 		pixman_region32_intersect(&surface_overlap, &renderer_region,
+ 					  &ev->transform.boundingbox);
+-
+ 		if (pixman_region32_not_empty(&surface_overlap))
+ 			next_plane = primary;
+ 		pixman_region32_fini(&surface_overlap);
+@@ -2895,6 +2896,11 @@ drm_assign_planes(struct weston_output *output_base, void *repaint_data)
+ 	wl_list_for_each(ev, &output_base->compositor->view_list, link) {
+ 		struct drm_plane *target_plane = NULL;
+ 
++		/* If this view doesn't touch our output at all, there's no
++		 * reason to do anything with it. */
++		if (!(ev->output_mask & (1u << output->base.id)))
++			continue;
++
+ 		/* Test whether this buffer can ever go into a plane:
+ 		 * non-shm, or small enough to be a cursor.
+ 		 *
+-- 
+1.9.1
+

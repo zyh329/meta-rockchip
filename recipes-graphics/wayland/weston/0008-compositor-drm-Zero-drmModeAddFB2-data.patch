@@ -1,0 +1,32 @@
+From c19a10cda2e5d5ef4cf98f7bb1456854a850ac1b Mon Sep 17 00:00:00 2001
+From: Yong Bakos <ybakos@humanoriented.com>
+Date: Wed, 17 Aug 2016 17:37:55 -0700
+Subject: [PATCH 08/94] compositor-drm: Zero drmModeAddFB2 data
+
+Initialize arrays of data passed to drmModeAddFB2, just as
+drm_fb_get_from_bo does.
+
+See https://lists.freedesktop.org/archives/wayland-devel/2016-August/030645.html
+
+Signed-off-by: Yong Bakos <ybakos@humanoriented.com>
+Reviewed-by: Quentin Glidic <sardemff7+git@sardemff7.net>
+---
+ src/compositor-drm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 7335a1d..65dda72 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -318,7 +318,7 @@ drm_fb_create_dumb(struct drm_backend *b, unsigned width, unsigned height,
+ 	ret = -1;
+ 
+ 	if (!b->no_addfb2) {
+-		uint32_t handles[4], pitches[4], offsets[4];
++		uint32_t handles[4] = { 0 }, pitches[4] = { 0 }, offsets[4] = { 0 };
+ 
+ 		handles[0] = fb->handle;
+ 		pitches[0] = fb->stride;
+-- 
+1.9.1
+
