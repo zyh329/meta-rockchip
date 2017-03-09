@@ -1,0 +1,65 @@
+From d5469f7346b514863a9f6eaed554fd7b9b681040 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Mon, 14 Nov 2016 17:43:57 +0000
+Subject: [PATCH 13/94] compositor-drm: Use signed int for width/height
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This makes it sign-compatible with weston_output->{width,height}.
+
+Differential Revision: https://phabricator.freedesktop.org/D1486
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Quentin Glidic <sardemff7+git@sardemff7.net>
+Reviewed-by: Armin Krezović <krezovic.armin@gmail.com>
+---
+ src/compositor-drm.c | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index b24e1b3..353fb07 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -100,8 +100,8 @@ struct drm_backend {
+ 	 * due to out of bounds dimensions, and then mistakenly set
+ 	 * sprites_are_broken:
+ 	 */
+-	uint32_t min_width, max_width;
+-	uint32_t min_height, max_height;
++	int min_width, max_width;
++	int min_height, max_height;
+ 	int no_addfb2;
+ 
+ 	struct wl_list sprite_list;
+@@ -259,7 +259,7 @@ drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
+ }
+ 
+ static struct drm_fb *
+-drm_fb_create_dumb(struct drm_backend *b, unsigned width, unsigned height,
++drm_fb_create_dumb(struct drm_backend *b, int width, int height,
+ 		   uint32_t format)
+ {
+ 	struct drm_fb *fb;
+@@ -377,7 +377,7 @@ drm_fb_get_from_bo(struct gbm_bo *bo,
+ 		   struct drm_backend *backend, uint32_t format)
+ {
+ 	struct drm_fb *fb = gbm_bo_get_user_data(bo);
+-	uint32_t width, height;
++	int width, height;
+ 	uint32_t handles[4] = { 0 }, pitches[4] = { 0 }, offsets[4] = { 0 };
+ 	int ret;
+ 
+@@ -397,7 +397,8 @@ drm_fb_get_from_bo(struct gbm_bo *bo,
+ 	fb->size = fb->stride * height;
+ 	fb->fd = backend->drm.fd;
+ 
+-	if (backend->min_width > width || width > backend->max_width ||
++	if (backend->min_width > width ||
++	    width > backend->max_width ||
+ 	    backend->min_height > height ||
+ 	    height > backend->max_height) {
+ 		weston_log("bo geometry out of bounds\n");
+-- 
+1.9.1
+

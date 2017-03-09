@@ -1,0 +1,54 @@
+From d2e1d1aad071c8523bf871787c865a46241b6423 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Mon, 24 Oct 2016 14:07:10 +0100
+Subject: [PATCH 48/94] compositor-drm: Turn vblank_pending from bool to
+ refcount
+
+vblank_pending is currently a bool, which is reset on every vblank
+requests (i.e. sprite pageflip). This can occur more than once per
+frame, so turn it into a callback, so we only fire frame-done when we've
+collected all the events.
+
+This fixes unexpected behaviour when multiple views per output have been
+promoted to DRM planes.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1418
+---
+ src/compositor-drm.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index f09218d..c705c43 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -849,7 +849,7 @@ drm_output_repaint(struct weston_output *output_base,
+ 		s->fb_last = s->fb_current;
+ 		s->fb_current = s->fb_pending;
+ 		s->fb_pending = NULL;
+-		output->vblank_pending = 1;
++		output->vblank_pending++;
+ 	}
+ 
+ 	return 0;
+@@ -956,13 +956,14 @@ vblank_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec,
+ 			 WP_PRESENTATION_FEEDBACK_KIND_HW_CLOCK;
+ 
+ 	drm_output_update_msc(output, frame);
+-	output->vblank_pending = 0;
++	output->vblank_pending--;
++	assert(output->vblank_pending >= 0);
+ 
+ 	assert(s->fb_last || s->fb_current);
+ 	drm_fb_unref(s->fb_last);
+ 	s->fb_last = NULL;
+ 
+-	if (!output->page_flip_pending) {
++	if (!output->page_flip_pending && !output->vblank_pending) {
+ 		ts.tv_sec = sec;
+ 		ts.tv_nsec = usec * 1000;
+ 		weston_output_finish_frame(&output->base, &ts, flags);
+-- 
+1.9.1
+

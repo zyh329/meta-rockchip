@@ -1,0 +1,59 @@
+From 58b4465e215e606268f462efd9baf073b593b71c Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Tue, 1 Nov 2016 23:28:04 +0000
+Subject: [PATCH 42/94] compositor-drm: Use refcounted FBs for Pixman
+
+When using the Pixman renderer, use drm_fb refcounting explicitly.
+
+Differential Revision: https://phabricator.freedesktop.org/D1492
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+---
+ src/compositor-drm.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index d38d347..bc146cf 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -522,7 +522,7 @@ drm_fb_unref(struct drm_fb *fb)
+ 
+ 	switch (fb->type) {
+ 	case BUFFER_PIXMAN_DUMB:
+-		/* nothing: pixman buffers are destroyed manually */
++		drm_fb_destroy_dumb(fb);
+ 		break;
+ 	case BUFFER_CLIENT:
+ 		gbm_bo_destroy(fb->bo);
+@@ -663,7 +663,7 @@ drm_output_render_pixman(struct drm_output *output, pixman_region32_t *damage)
+ 
+ 	output->current_image ^= 1;
+ 
+-	output->next = output->dumb[output->current_image];
++	output->next = drm_fb_ref(output->dumb[output->current_image]);
+ 	pixman_renderer_output_set_buffer(&output->base,
+ 					  output->image[output->current_image]);
+ 
+@@ -2043,7 +2043,7 @@ drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
+ err:
+ 	for (i = 0; i < ARRAY_LENGTH(output->dumb); i++) {
+ 		if (output->dumb[i])
+-			drm_fb_destroy_dumb(output->dumb[i]);
++			drm_fb_unref(output->dumb[i]);
+ 		if (output->image[i])
+ 			pixman_image_unref(output->image[i]);
+ 
+@@ -2063,8 +2063,8 @@ drm_output_fini_pixman(struct drm_output *output)
+ 	pixman_region32_fini(&output->previous_damage);
+ 
+ 	for (i = 0; i < ARRAY_LENGTH(output->dumb); i++) {
+-		drm_fb_destroy_dumb(output->dumb[i]);
+ 		pixman_image_unref(output->image[i]);
++		drm_fb_unref(output->dumb[i]);
+ 		output->dumb[i] = NULL;
+ 		output->image[i] = NULL;
+ 	}
+-- 
+1.9.1
+

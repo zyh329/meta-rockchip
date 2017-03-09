@@ -1,0 +1,53 @@
+From 7867ef7083f388258b600746c24b342874f6a37e Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Mon, 14 Nov 2016 17:46:59 +0000
+Subject: [PATCH 62/94] compositor-drm: Don't repaint if no damage
+
+If we don't have any damage for the primary plane, then don't force a
+repaint; simply reuse the old buffer we already have.
+
+Differential Revision: https://phabricator.freedesktop.org/D1499
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+---
+ src/compositor-drm.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index a3d9e6a..46f56f0 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -1507,6 +1507,7 @@ drm_output_render(struct drm_output_state *state, pixman_region32_t *damage)
+ 	struct drm_output *output = state->output;
+ 	struct weston_compositor *c = output->base.compositor;
+ 	struct drm_plane_state *scanout_state;
++	struct drm_plane *scanout_plane = output->scanout_plane;
+ 	struct drm_backend *b = to_drm_backend(c);
+ 	struct drm_fb *fb;
+ 
+@@ -1517,10 +1518,20 @@ drm_output_render(struct drm_output_state *state, pixman_region32_t *damage)
+ 	if (scanout_state->fb)
+ 		return;
+ 
+-	if (b->use_pixman)
++	if (!pixman_region32_not_empty(damage) &&
++	    scanout_plane->state_cur->fb &&
++	    (scanout_plane->state_cur->fb->type == BUFFER_GBM_SURFACE ||
++	     scanout_plane->state_cur->fb->type == BUFFER_PIXMAN_DUMB) &&
++	    scanout_plane->state_cur->fb->width ==
++		output->base.current_mode->width &&
++	    scanout_plane->state_cur->fb->height ==
++		output->base.current_mode->height) {
++		fb = drm_fb_ref(scanout_plane->state_cur->fb);
++	} else if (b->use_pixman) {
+ 		fb = drm_output_render_pixman(state, damage);
+-	else
++	} else {
+ 		fb = drm_output_render_gl(state, damage);
++	}
+ 
+ 	if (!fb) {
+ 		drm_plane_state_put_back(scanout_state);
+-- 
+1.9.1
+

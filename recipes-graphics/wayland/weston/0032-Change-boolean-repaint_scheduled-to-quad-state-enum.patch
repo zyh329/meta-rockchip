@@ -1,0 +1,129 @@
+From 95d2b688044c7addcb517f853759a031cc8a00b6 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Tue, 28 Feb 2017 17:56:32 +0000
+Subject: [PATCH 32/94] Change boolean repaint_scheduled to quad-state enum
+
+repaint_scheduled is actually cleverly a quad-state, disguised as a
+boolean. There are four possible conditions for the repaint loop to be
+in at any time:
+  - loop idle; no repaint will occur until specifically requested, which
+    may be never (repaint_scheduled == 0)
+  - loop schedule to begin: the loop was previously idle, but due to a
+    repaint-schedule request, we will call the start_repaint_loop hook
+    in the next idle timer
+  - repaint scheduled: the compositor has definitively scheduled a
+    repaint request for this output, which will occur in fixed time
+  - awaiting repaint completion: the backend has not yet signaled
+    completion of the last repaint request, and the compositor will not
+    schedule another until it does so
+
+All but the first condition were previously conflated as
+repaint_scheduled == 1, but break them out into separate conditions to
+aid clarity, backed up by some asserts.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+---
+ src/compositor.c | 20 +++++++++++++++++---
+ src/compositor.h | 10 +++++++++-
+ 2 files changed, 26 insertions(+), 4 deletions(-)
+
+diff --git a/src/compositor.c b/src/compositor.c
+index 9185ab9..11ae30a 100644
+--- a/src/compositor.c
++++ b/src/compositor.c
+@@ -2396,6 +2396,8 @@ weston_output_repaint(struct weston_output *output)
+ 	pixman_region32_fini(&output_damage);
+ 
+ 	output->repaint_needed = false;
++	if (r == 0)
++		output->repaint_status = REPAINT_AWAITING_COMPLETION;
+ 
+ 	weston_compositor_repick(ec);
+ 
+@@ -2417,7 +2419,7 @@ weston_output_repaint(struct weston_output *output)
+ static void
+ weston_output_schedule_repaint_reset(struct weston_output *output)
+ {
+-	output->repaint_scheduled = 0;
++	output->repaint_status = REPAINT_NOT_SCHEDULED;
+ 	TL_POINT("core_repaint_exit_loop", TLP_OUTPUT(output), TLP_END);
+ }
+ 
+@@ -2428,6 +2430,8 @@ output_repaint_timer_handler(void *data)
+ 	struct weston_compositor *compositor = output->compositor;
+ 	int ret;
+ 
++	assert(output->repaint_status == REPAINT_SCHEDULED);
++
+ 	/* If we're sleeping, drop the repaint machinery entirely; we will
+ 	 * explicitly repaint all outputs when we come back. */
+ 	if (compositor->state == WESTON_COMPOSITOR_SLEEPING ||
+@@ -2468,6 +2472,7 @@ weston_output_finish_frame(struct weston_output *output,
+ 	TL_POINT("core_repaint_finished", TLP_OUTPUT(output),
+ 		 TLP_VBLANK(stamp), TLP_END);
+ 
++	assert(output->repaint_status == REPAINT_AWAITING_COMPLETION);
+ 	assert(stamp || (presented_flags & WP_PRESENTATION_FEEDBACK_INVALID));
+ 
+ 	/* If we haven't been supplied any timestamp at all, we don't have a
+@@ -2509,6 +2514,8 @@ weston_output_finish_frame(struct weston_output *output,
+ 		msec_rel += refresh_nsec / 1000000;
+ 
+ out:
++	output->repaint_status = REPAINT_SCHEDULED;
++
+ 	if (msec_rel < 1)
+ 		output_repaint_timer_handler(output);
+ 	else
+@@ -2520,6 +2527,8 @@ idle_repaint(void *data)
+ {
+ 	struct weston_output *output = data;
+ 
++	assert(output->repaint_status == REPAINT_BEGIN_FROM_IDLE);
++	output->repaint_status = REPAINT_AWAITING_COMPLETION;
+ 	output->start_repaint_loop(output);
+ }
+ 
+@@ -2587,11 +2596,16 @@ weston_output_schedule_repaint(struct weston_output *output)
+ 
+ 	loop = wl_display_get_event_loop(compositor->wl_display);
+ 	output->repaint_needed = true;
+-	if (output->repaint_scheduled)
++
++	/* If we already have a repaint scheduled for our idle handler,
++	 * no need to set it again. If the repaint has been called but
++	 * not finished, then weston_output_finish_frame() will notice
++	 * that a repaint is needed and schedule one. */
++	if (output->repaint_status != REPAINT_NOT_SCHEDULED)
+ 		return;
+ 
++	output->repaint_status = REPAINT_BEGIN_FROM_IDLE;
+ 	wl_event_loop_add_idle(loop, idle_repaint, output);
+-	output->repaint_scheduled = 1;
+ 	TL_POINT("core_repaint_enter_loop", TLP_OUTPUT(output), TLP_END);
+ }
+ 
+diff --git a/src/compositor.h b/src/compositor.h
+index 4d8605c..3dc04b5 100644
+--- a/src/compositor.h
++++ b/src/compositor.h
+@@ -194,7 +194,15 @@ struct weston_output {
+ 	/** True if damage has occurred since the last repaint for this output;
+ 	 *  if set, a repaint will eventually occur. */
+ 	bool repaint_needed;
+-	int repaint_scheduled;
++
++	/** State of the repaint loop */
++	enum {
++		REPAINT_NOT_SCHEDULED = 0, /**< idle; no repaint will occur */
++		REPAINT_BEGIN_FROM_IDLE, /**< start_repaint_loop scheduled */
++		REPAINT_SCHEDULED, /**< repaint is scheduled to occur */
++		REPAINT_AWAITING_COMPLETION, /**< last repaint not yet finished */
++	} repaint_status;
++
+ 	struct wl_event_source *repaint_timer;
+ 	struct weston_output_zoom zoom;
+ 	int dirty;
+-- 
+1.9.1
+

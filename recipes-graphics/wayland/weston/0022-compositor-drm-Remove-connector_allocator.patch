@@ -1,0 +1,125 @@
+From 81913cbd5588250236a6e9da8d953e6fcd7b9b00 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Thu, 9 Feb 2017 14:06:31 +0000
+Subject: [PATCH 22/94] compositor-drm: Remove connector_allocator
+
+Remove the last usage of connector_allocator, which was to check for
+displays which have been hot-unplugged, and replace it with an array
+which doesn't rely on the connector IDs remaining below 32 (or 64).
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Quentin Glidic <sardemff7+git@sardemff7.net>
+Reported-by: Peter Senna Tschudin <peter.senna@collabora.com>
+---
+ src/compositor-drm.c | 42 +++++++++++++++++++++++++-----------------
+ 1 file changed, 25 insertions(+), 17 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index c8d85c7..3666c37 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -92,7 +92,6 @@ struct drm_backend {
+ 		char *filename;
+ 	} drm;
+ 	struct gbm_device *gbm;
+-	uint32_t connector_allocator;
+ 	struct wl_listener session_listener;
+ 	uint32_t gbm_format;
+ 
+@@ -1416,8 +1415,6 @@ drm_output_destroy(struct weston_output *output_base)
+ 		       &output->connector_id, 1, &origcrtc->mode);
+ 	drmModeFreeCrtc(origcrtc);
+ 
+-	b->connector_allocator &= ~(1 << output->connector_id);
+-
+ 	if (b->use_pixman)
+ 		drm_output_fini_pixman(output);
+ 	else
+@@ -2434,7 +2431,6 @@ create_output_for_connector(struct drm_backend *b,
+ 	output->crtc_id = resources->crtcs[i];
+ 	output->pipe = i;
+ 	output->connector_id = connector->connector_id;
+-	b->connector_allocator |= (1 << output->connector_id);
+ 
+ 	output->original_crtc = drmModeGetCrtc(b->drm.fd, output->crtc_id);
+ 	output->dpms_prop = drm_get_prop(b->drm.fd, connector, "DPMS");
+@@ -2539,7 +2535,6 @@ err_free:
+ 	}
+ 
+ 	drmModeFreeCrtc(output->original_crtc);
+-	b->connector_allocator &= ~(1 << output->connector_id);
+ 	free(output);
+ 	free(config.modeline);
+ 
+@@ -2674,7 +2669,7 @@ update_outputs(struct drm_backend *b, struct udev_device *drm_device)
+ 	drmModeRes *resources;
+ 	struct drm_output *output, *next;
+ 	int x = 0, y = 0;
+-	uint32_t connected = 0, disconnects = 0;
++	uint32_t *connected;
+ 	int i;
+ 
+ 	resources = drmModeGetResources(b->drm.fd);
+@@ -2683,6 +2678,12 @@ update_outputs(struct drm_backend *b, struct udev_device *drm_device)
+ 		return;
+ 	}
+ 
++	connected = calloc(resources->count_connectors, sizeof(uint32_t));
++	if (!connected) {
++		drmModeFreeResources(resources);
++		return;
++	}
++
+ 	/* collect new connects */
+ 	for (i = 0; i < resources->count_connectors; i++) {
+ 		int connector_id = resources->connectors[i];
+@@ -2699,7 +2700,7 @@ update_outputs(struct drm_backend *b, struct udev_device *drm_device)
+ 			continue;
+ 		}
+ 
+-		connected |= (1 << connector_id);
++		connected[i] = connector_id;
+ 
+ 		if (drm_output_find_by_connector(b, connector_id)) {
+ 			drmModeFreeConnector(connector);
+@@ -2717,20 +2718,27 @@ update_outputs(struct drm_backend *b, struct udev_device *drm_device)
+ 					    drm_device);
+ 		weston_log("connector %d connected\n", connector_id);
+ 	}
+-	drmModeFreeResources(resources);
+ 
+-	disconnects = b->connector_allocator & ~connected;
+-	if (disconnects) {
+-		wl_list_for_each_safe(output, next, &b->compositor->output_list,
+-				      base.link) {
+-			if (disconnects & (1 << output->connector_id)) {
+-				disconnects &= ~(1 << output->connector_id);
+-				weston_log("connector %d disconnected\n",
+-				       output->connector_id);
+-				drm_output_destroy(&output->base);
++	wl_list_for_each_safe(output, next, &b->compositor->output_list,
++			      base.link) {
++		bool disconnected = true;
++
++		for (i = 0; i < resources->count_connectors; i++) {
++			if (connected[i] == output->connector_id) {
++				disconnected = false;
++				break;
+ 			}
+ 		}
++
++		if (!disconnected)
++			continue;
++
++		weston_log("connector %d disconnected\n", output->connector_id);
++		drm_output_destroy(&output->base);
+ 	}
++
++	free(connected);
++	drmModeFreeResources(resources);
+ }
+ 
+ static int
+-- 
+1.9.1
+

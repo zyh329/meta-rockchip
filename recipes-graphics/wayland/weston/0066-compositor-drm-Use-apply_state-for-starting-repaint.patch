@@ -1,0 +1,78 @@
+From fa622750dc9fd702ccc58b93607cd7abd6b15616 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Tue, 29 Nov 2016 20:17:32 +0000
+Subject: [PATCH 66/94] compositor-drm: Use apply_state for starting repaint
+
+Rather than open-coding it ourselves, use the new apply_state helper in
+drm_output_start_repaint.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reported-by: Fabien DESSENNE <fabien.dessenne@st.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1514
+---
+ src/compositor-drm.c | 29 +++++------------------------
+ 1 file changed, 5 insertions(+), 24 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 9eb4a94..9298323 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -1903,12 +1903,9 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
+ {
+ 	struct drm_output *output = to_drm_output(output_base);
+ 	struct drm_pending_state *pending_state;
+-	struct drm_output_state *state;
+-	struct drm_plane_state *plane_state;
+ 	struct drm_plane *scanout_plane = output->scanout_plane;
+ 	struct drm_backend *backend =
+ 		to_drm_backend(output_base->compositor);
+-	uint32_t fb_id;
+ 	struct timespec ts, tnow;
+ 	struct timespec vbl2now;
+ 	int64_t refresh_nsec;
+@@ -1958,36 +1955,20 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
+ 	/* Immediate query didn't provide valid timestamp.
+ 	 * Use pageflip fallback.
+ 	 */
+-	fb_id = scanout_plane->state_cur->fb->fb_id;
+ 
+ 	assert(!output->page_flip_pending);
+ 	assert(!output->state_last);
+ 
+ 	pending_state = drm_pending_state_alloc(backend);
+-	state = drm_output_state_duplicate(output->state_cur, pending_state,
+-					   DRM_OUTPUT_STATE_PRESERVE_PLANES);
++	drm_output_state_duplicate(output->state_cur, pending_state,
++				   DRM_OUTPUT_STATE_PRESERVE_PLANES);
+ 
+-	if (drmModePageFlip(backend->drm.fd, output->crtc_id, fb_id,
+-			    DRM_MODE_PAGE_FLIP_EVENT, output) < 0) {
+-		weston_log("queueing pageflip failed: %m\n");
+-		drm_output_state_free(state);
++	ret = drm_pending_state_apply(pending_state);
++	if (ret != 0) {
++		weston_log("applying repaint-start state failed: %m\n");
+ 		goto finish_frame;
+ 	}
+ 
+-	wl_list_for_each(plane_state, &state->plane_list, link) {
+-		if (plane_state->plane->type != WDRM_PLANE_TYPE_OVERLAY)
+-			continue;
+-
+-		vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT;
+-		vbl.request.type |= drm_waitvblank_pipe(output);
+-		vbl.request.sequence = 1;
+-		vbl.request.signal = (unsigned long) plane_state;
+-		drmWaitVBlank(backend->drm.fd, &vbl);
+-	}
+-
+-	drm_output_assign_state(state, DRM_OUTPUT_STATE_UPDATE_ASYNCHRONOUS);
+-	free(pending_state);
+-
+ 	return;
+ 
+ finish_frame:
+-- 
+1.9.1
+

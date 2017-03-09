@@ -1,0 +1,39 @@
+From 7733fcb3e27c9c6f40bbb2439fe8caca5cb79968 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Thu, 1 Dec 2016 12:33:54 +0000
+Subject: [PATCH 85/94] compositor-drm: Don't need safe view-list traversal
+
+Nothing in this loop reorders views within the compositor's view_list.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1527
+---
+ src/compositor-drm.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 549f2cf..6bc4a85 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -2819,7 +2819,7 @@ drm_assign_planes(struct weston_output *output_base, void *repaint_data)
+ 	struct drm_output *output = to_drm_output(output_base);
+ 	struct drm_output_state *state;
+ 	struct drm_plane_state *plane_state;
+-	struct weston_view *ev, *next;
++	struct weston_view *ev;
+ 	pixman_region32_t overlap, surface_overlap;
+ 	struct weston_plane *primary, *next_plane;
+ 
+@@ -2844,7 +2844,7 @@ drm_assign_planes(struct weston_output *output_base, void *repaint_data)
+ 	pixman_region32_init(&overlap);
+ 	primary = &output_base->compositor->primary_plane;
+ 
+-	wl_list_for_each_safe(ev, next, &output_base->compositor->view_list, link) {
++	wl_list_for_each(ev, &output_base->compositor->view_list, link) {
+ 		struct weston_surface *es = ev->surface;
+ 
+ 		/* Test whether this buffer can ever go into a plane:
+-- 
+1.9.1
+

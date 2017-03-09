@@ -1,0 +1,25 @@
+From 85304fd65735871dc80eb9c95ec7115b38d4c49f Mon Sep 17 00:00:00 2001
+From: Bryce Harrington <bryce@osg.samsung.com>
+Date: Fri, 3 Feb 2017 17:01:59 -0800
+Subject: [PATCH 31/94] libweston: grammar fix to recent comment
+
+---
+ src/compositor.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/compositor.c b/src/compositor.c
+index 6f6de10..9185ab9 100644
+--- a/src/compositor.c
++++ b/src/compositor.c
+@@ -2441,7 +2441,7 @@ output_repaint_timer_handler(void *data)
+ 
+ 	/* If repaint fails, we aren't going to get weston_output_finish_frame
+ 	 * to trigger a new repaint, so drop it from repaint and hope
+-	 * something later schedules a successful repaint. */
++	 * something schedules a successful repaint later. */
+ 	ret = weston_output_repaint(output);
+ 	if (ret != 0)
+ 		goto err;
+-- 
+1.9.1
+

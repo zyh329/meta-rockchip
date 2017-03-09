@@ -1,0 +1,61 @@
+From 15fe7ac496ac1635bd79b4563ff72048a70c3193 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Sat, 5 Nov 2016 08:10:13 +0000
+Subject: [PATCH 16/94] compositor-drm: Remove open-coded
+ weston_compositor_wake
+
+This always changes the state to ACTIVE when we enter the session,
+whereas the previous implementation preserved the state (i.e. if state
+was SLEEPING on exit, it would be restored to SLEEPING, but also with a
+repaint). This seems more helpful behaviour, however: if you enter a
+session, it's probably in order to interact with it.
+
+Differential Revision: https://phabricator.freedesktop.org/D1482
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Quentin Glidic <sardemff7+git@sardemff7.net>
+---
+ src/compositor-drm.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 85a1194..0bc5e79 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -112,8 +112,6 @@ struct drm_backend {
+ 
+ 	int use_pixman;
+ 
+-	uint32_t prev_state;
+-
+ 	struct udev_input input;
+ 
+ 	int32_t cursor_width;
+@@ -2752,14 +2750,13 @@ session_notify(struct wl_listener *listener, void *data)
+ 
+ 	if (compositor->session_active) {
+ 		weston_log("activating session\n");
+-		compositor->state = b->prev_state;
++		weston_compositor_wake(compositor);
+ 		weston_compositor_damage_all(compositor);
+ 		udev_input_enable(&b->input);
+ 	} else {
+ 		weston_log("deactivating session\n");
+ 		udev_input_disable(&b->input);
+ 
+-		b->prev_state = compositor->state;
+ 		weston_compositor_offscreen(compositor);
+ 
+ 		/* If we have a repaint scheduled (either from a
+@@ -3110,8 +3107,6 @@ drm_backend_create(struct weston_compositor *compositor,
+ 	b->base.destroy = drm_destroy;
+ 	b->base.restore = drm_restore;
+ 
+-	b->prev_state = WESTON_COMPOSITOR_ACTIVE;
+-
+ 	weston_setup_vt_switch_bindings(compositor);
+ 
+ 	wl_list_init(&b->sprite_list);
+-- 
+1.9.1
+
