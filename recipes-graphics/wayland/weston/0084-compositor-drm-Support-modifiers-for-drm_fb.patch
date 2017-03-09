@@ -1,0 +1,83 @@
+From 81ff5c5e08c1d2bdf980afe71a39ad1f9fc61969 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Thu, 8 Dec 2016 16:36:18 +0000
+Subject: [PATCH 84/94] compositor-drm: Support modifiers for drm_fb
+
+Use the new drmModeAddFB2WithModifiers interface to import buffers with
+modifiers.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1526
+---
+ configure.ac         |  3 +++
+ src/compositor-drm.c | 25 ++++++++++++++++++++++++-
+ 2 files changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index c9e53b9..9e2835c 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -179,6 +179,9 @@ if test x$enable_drm_compositor = xyes; then
+   PKG_CHECK_MODULES(DRM_COMPOSITOR_ATOMIC, [libdrm >= 2.4.74],
+ 		    [AC_DEFINE([HAVE_DRM_ATOMIC], 1, [libdrm supports atomic API])],
+ 		    [AC_MSG_WARN([libdrm does not support atomic modesetting, will omit that capability])])
++  PKG_CHECK_MODULES(DRM_COMPOSITOR_MODIFIERS, [libdrm >= 2.4.71],
++		    [AC_DEFINE([HAVE_DRM_ADDFB2_MODIFIERS], 1, [libdrm supports modifiers])],
++		    [AC_MSG_WARN([libdrm does not support AddFB2 with modifiers])])
+ fi
+ 
+ 
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 6e0c4e3..549f2cf 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -271,6 +271,7 @@ struct drm_fb {
+ 	uint32_t strides[4];
+ 	uint32_t offsets[4];
+ 	const struct pixel_format_info *format;
++	uint64_t modifier;
+ 	int width, height;
+ 	int fd;
+ 	struct weston_buffer_reference buffer_ref;
+@@ -794,7 +795,28 @@ drm_fb_destroy_gbm(struct gbm_bo *bo, void *data)
+ static int
+ drm_fb_addfb(struct drm_fb *fb)
+ {
+-	int ret;
++	int ret = -EINVAL;
++#ifdef HAVE_DRM_ADDFB2_MODIFIERS
++	uint64_t mods[4] = { };
++	int i;
++#endif
++
++	/* If we have a modifier set, we must only use the WithModifiers
++	 * entrypoint; we cannot import it through legacy ioctls. */
++	if (fb->modifier) {
++		/* KMS demands that if a modifier is set, it must be the same
++		 * for all planes. */
++#ifdef HAVE_DRM_ADDFB2_MODIFIERS
++		for (i = 0; fb->handles[i]; i++)
++			mods[i] = fb->modifier;
++		ret = drmModeAddFB2WithModifiers(fb->fd, fb->width, fb->height,
++						 fb->format->format,
++						 fb->handles, fb->strides,
++						 fb->offsets, mods, &fb->fb_id,
++						 DRM_MODE_FB_MODIFIERS);
++#endif
++		return ret;
++	}
+ 
+ 	ret = drmModeAddFB2(fb->fd, fb->width, fb->height, fb->format->format,
+ 			    fb->handles, fb->strides, fb->offsets, &fb->fb_id,
+@@ -947,6 +969,7 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
+ 	memcpy(fb->strides, dmabuf->attributes.stride, sizeof(fb->strides));
+ 	memcpy(fb->offsets, dmabuf->attributes.offset, sizeof(fb->offsets));
+ 	fb->format = pixel_format_get_info(dmabuf->attributes.format);
++	fb->modifier = dmabuf->attributes.modifier[0];
+ 	fb->size = 0;
+ 	fb->fd = backend->drm.fd;
+ 
+-- 
+1.9.1
+

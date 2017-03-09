@@ -1,0 +1,319 @@
+From 07137a95a8cafd362adc55d09a5d510dea59bc26 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Mon, 16 Jan 2017 19:32:14 +0000
+Subject: [PATCH 34/94] Allow backends to group repaint flushes
+
+Implement new repaint_begin and repaint_flush hooks inside
+weston_backend, allowing backends to gang together repaints which
+trigger at the same time.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+---
+ src/compositor-drm.c      |  5 +++--
+ src/compositor-fbdev.c    |  3 ++-
+ src/compositor-headless.c |  3 ++-
+ src/compositor-rdp.c      |  3 ++-
+ src/compositor-rpi.c      |  3 ++-
+ src/compositor-wayland.c  |  6 ++++--
+ src/compositor-x11.c      |  6 ++++--
+ src/compositor.c          | 46 +++++++++++++++++++++++++++++++++-------------
+ src/compositor.h          | 38 ++++++++++++++++++++++++++++++++++++--
+ 9 files changed, 88 insertions(+), 25 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 3ac3552..cff4122 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -692,7 +692,8 @@ drm_waitvblank_pipe(struct drm_output *output)
+ 
+ static int
+ drm_output_repaint(struct weston_output *output_base,
+-		   pixman_region32_t *damage)
++		   pixman_region32_t *damage,
++		   void *repaint_data)
+ {
+ 	struct drm_output *output = to_drm_output(output_base);
+ 	struct drm_backend *backend =
+@@ -1296,7 +1297,7 @@ drm_output_set_cursor(struct drm_output *output)
+ }
+ 
+ static void
+-drm_assign_planes(struct weston_output *output_base)
++drm_assign_planes(struct weston_output *output_base, void *repaint_data)
+ {
+ 	struct drm_backend *b = to_drm_backend(output_base->compositor);
+ 	struct drm_output *output = to_drm_output(output_base);
+diff --git a/src/compositor-fbdev.c b/src/compositor-fbdev.c
+index f7b939a..b299a33e 100644
+--- a/src/compositor-fbdev.c
++++ b/src/compositor-fbdev.c
+@@ -146,7 +146,8 @@ fbdev_output_repaint_pixman(struct weston_output *base, pixman_region32_t *damag
+ }
+ 
+ static int
+-fbdev_output_repaint(struct weston_output *base, pixman_region32_t *damage)
++fbdev_output_repaint(struct weston_output *base, pixman_region32_t *damage,
++		     void *repaint_data)
+ {
+ 	struct fbdev_output *output = to_fbdev_output(base);
+ 	struct fbdev_backend *fbb = output->backend;
+diff --git a/src/compositor-headless.c b/src/compositor-headless.c
+index ed6c48c..f3fdcf0 100644
+--- a/src/compositor-headless.c
++++ b/src/compositor-headless.c
+@@ -77,7 +77,8 @@ finish_frame_handler(void *data)
+ 
+ static int
+ headless_output_repaint(struct weston_output *output_base,
+-		       pixman_region32_t *damage)
++		       pixman_region32_t *damage,
++		       void *repaint_data)
+ {
+ 	struct headless_output *output = (struct headless_output *) output_base;
+ 	struct weston_compositor *ec = output->base.compositor;
+diff --git a/src/compositor-rdp.c b/src/compositor-rdp.c
+index 4fc7c74..c1d13b6 100644
+--- a/src/compositor-rdp.c
++++ b/src/compositor-rdp.c
+@@ -332,7 +332,8 @@ rdp_output_start_repaint_loop(struct weston_output *output)
+ }
+ 
+ static int
+-rdp_output_repaint(struct weston_output *output_base, pixman_region32_t *damage)
++rdp_output_repaint(struct weston_output *output_base, pixman_region32_t *damage,
++		   void *repaint_data)
+ {
+ 	struct rdp_output *output = container_of(output_base, struct rdp_output, base);
+ 	struct weston_compositor *ec = output->base.compositor;
+diff --git a/src/compositor-rpi.c b/src/compositor-rpi.c
+index 75b808e..dd968ed 100644
+--- a/src/compositor-rpi.c
++++ b/src/compositor-rpi.c
+@@ -227,7 +227,8 @@ rpi_output_start_repaint_loop(struct weston_output *output)
+ }
+ 
+ static int
+-rpi_output_repaint(struct weston_output *base, pixman_region32_t *damage)
++rpi_output_repaint(struct weston_output *base, pixman_region32_t *damage,
++		   void *repaint_data)
+ {
+ 	struct rpi_output *output = to_rpi_output(base);
+ 	struct weston_compositor *compositor = output->backend->compositor;
+diff --git a/src/compositor-wayland.c b/src/compositor-wayland.c
+index fe8b082..a16a175 100644
+--- a/src/compositor-wayland.c
++++ b/src/compositor-wayland.c
+@@ -457,7 +457,8 @@ wayland_output_start_repaint_loop(struct weston_output *output_base)
+ 
+ static int
+ wayland_output_repaint_gl(struct weston_output *output_base,
+-			  pixman_region32_t *damage)
++			  pixman_region32_t *damage,
++			  void *repaint_data)
+ {
+ 	struct wayland_output *output = (struct wayland_output *) output_base;
+ 	struct weston_compositor *ec = output->base.compositor;
+@@ -564,7 +565,8 @@ wayland_shm_buffer_attach(struct wayland_shm_buffer *sb)
+ 
+ static int
+ wayland_output_repaint_pixman(struct weston_output *output_base,
+-			      pixman_region32_t *damage)
++			      pixman_region32_t *damage,
++			      void *repaint_data)
+ {
+ 	struct wayland_output *output = (struct wayland_output *) output_base;
+ 	struct wayland_backend *b =
+diff --git a/src/compositor-x11.c b/src/compositor-x11.c
+index 629b5f3..f23a90d 100644
+--- a/src/compositor-x11.c
++++ b/src/compositor-x11.c
+@@ -372,7 +372,8 @@ x11_output_start_repaint_loop(struct weston_output *output)
+ 
+ static int
+ x11_output_repaint_gl(struct weston_output *output_base,
+-		      pixman_region32_t *damage)
++		      pixman_region32_t *damage,
++		      void *repaint_data)
+ {
+ 	struct x11_output *output = (struct x11_output *)output_base;
+ 	struct weston_compositor *ec = output->base.compositor;
+@@ -440,7 +441,8 @@ set_clip_for_output(struct weston_output *output_base, pixman_region32_t *region
+ 
+ static int
+ x11_output_repaint_shm(struct weston_output *output_base,
+-		       pixman_region32_t *damage)
++		       pixman_region32_t *damage,
++		       void *repaint_data)
+ {
+ 	struct x11_output *output = (struct x11_output *)output_base;
+ 	struct weston_compositor *ec = output->base.compositor;
+diff --git a/src/compositor.c b/src/compositor.c
+index 30ed06d..19d1bfb 100644
+--- a/src/compositor.c
++++ b/src/compositor.c
+@@ -2339,7 +2339,7 @@ weston_output_take_feedback_list(struct weston_output *output,
+ }
+ 
+ static int
+-weston_output_repaint(struct weston_output *output)
++weston_output_repaint(struct weston_output *output, void *repaint_data)
+ {
+ 	struct weston_compositor *ec = output->compositor;
+ 	struct weston_view *ev;
+@@ -2358,7 +2358,7 @@ weston_output_repaint(struct weston_output *output)
+ 	weston_compositor_build_view_list(ec);
+ 
+ 	if (output->assign_planes && !output->disable_planes) {
+-		output->assign_planes(output);
++		output->assign_planes(output, repaint_data);
+ 	} else {
+ 		wl_list_for_each(ev, &ec->view_list, link) {
+ 			weston_view_move_to_plane(ev, &ec->primary_plane);
+@@ -2391,7 +2391,7 @@ weston_output_repaint(struct weston_output *output)
+ 	if (output->dirty)
+ 		weston_output_update_matrix(output);
+ 
+-	r = output->repaint(output, &output_damage);
++	r = output->repaint(output, &output_damage, repaint_data);
+ 
+ 	pixman_region32_fini(&output_damage);
+ 
+@@ -2423,21 +2423,21 @@ weston_output_schedule_repaint_reset(struct weston_output *output)
+ 	TL_POINT("core_repaint_exit_loop", TLP_OUTPUT(output), TLP_END);
+ }
+ 
+-static void
+-weston_output_maybe_repaint(struct weston_output *output,
+-			    struct timespec *now)
++static int
++weston_output_maybe_repaint(struct weston_output *output, struct timespec *now,
++			    void *repaint_data)
+ {
+ 	struct weston_compositor *compositor = output->compositor;
+-	int ret;
++	int ret = 0;
+ 	int64_t msec_to_repaint;
+ 
+ 	/* We're not ready yet; come back to make a decision later. */
+ 	if (output->repaint_status != REPAINT_SCHEDULED)
+-		return;
++		return ret;
+ 
+ 	msec_to_repaint = timespec_sub_to_msec(&output->next_repaint, now);
+ 	if (msec_to_repaint > 1)
+-		return;
++		return ret;
+ 
+ 	/* If we're sleeping, drop the repaint machinery entirely; we will
+ 	 * explicitly repaint all outputs when we come back. */
+@@ -2455,15 +2455,16 @@ weston_output_maybe_repaint(struct weston_output *output,
+ 	 * something schedules a successful repaint later. As repainting may
+ 	 * take some time, re-read our clock as a courtesy to the next
+ 	 * output. */
+-	ret = weston_output_repaint(output);
++	ret = weston_output_repaint(output, repaint_data);
+ 	weston_compositor_read_presentation_clock(compositor, now);
+ 	if (ret != 0)
+ 		goto err;
+ 
+-	return;
++	return ret;
+ 
+ err:
+ 	weston_output_schedule_repaint_reset(output);
++	return ret;
+ }
+ 
+ static void
+@@ -2506,10 +2507,29 @@ output_repaint_timer_handler(void *data)
+ 	struct weston_compositor *compositor = data;
+ 	struct weston_output *output;
+ 	struct timespec now;
++	void *repaint_data = NULL;
++	int ret;
+ 
+ 	weston_compositor_read_presentation_clock(compositor, &now);
+-	wl_list_for_each(output, &compositor->output_list, link)
+-		weston_output_maybe_repaint(output, &now);
++
++	if (compositor->backend->repaint_begin)
++		repaint_data = compositor->backend->repaint_begin(compositor);
++
++	wl_list_for_each(output, &compositor->output_list, link) {
++		ret = weston_output_maybe_repaint(output, &now, repaint_data);
++		if (ret)
++			break;
++	}
++
++	if (ret == 0) {
++	    if (compositor->backend->repaint_flush)
++		    compositor->backend->repaint_flush(compositor,
++						       repaint_data);
++	} else {
++	    if (compositor->backend->repaint_cancel)
++		    compositor->backend->repaint_cancel(compositor,
++						        repaint_data);
++	}
+ 
+ 	output_repaint_timer_arm(compositor);
+ 
+diff --git a/src/compositor.h b/src/compositor.h
+index bcc8cc8..8960bed 100644
+--- a/src/compositor.h
++++ b/src/compositor.h
+@@ -232,9 +232,10 @@ struct weston_output {
+ 
+ 	void (*start_repaint_loop)(struct weston_output *output);
+ 	int (*repaint)(struct weston_output *output,
+-			pixman_region32_t *damage);
++			pixman_region32_t *damage,
++			void *repaint_data);
+ 	void (*destroy)(struct weston_output *output);
+-	void (*assign_planes)(struct weston_output *output);
++	void (*assign_planes)(struct weston_output *output, void *repaint_data);
+ 	int (*switch_mode)(struct weston_output *output, struct weston_mode *mode);
+ 
+ 	/* backlight values are on 0-255 range, where higher is brighter */
+@@ -732,6 +733,39 @@ struct weston_backend_config {
+ struct weston_backend {
+ 	void (*destroy)(struct weston_compositor *compositor);
+ 	void (*restore)(struct weston_compositor *compositor);
++
++	/** Begin a repaint sequence
++	 *
++	 * Provides the backend with explicit markers around repaint
++	 * sequences, which may allow the backend to aggregate state
++	 * application. This call will be bracketed by the repaint_flush (on
++	 * success), or repaint_cancel (when any output in the grouping fails
++	 * repaint).
++	 *
++	 * Returns an opaque pointer, which the backend may use as private
++	 * data referring to the repaint cycle.
++	 */
++	void * (*repaint_begin)(struct weston_compositor *compositor);
++
++	/** Cancel a repaint sequence
++	 *
++	 * Cancels a repaint sequence, when an error has occurred during
++	 * one output's repaint; see repaint_begin.
++	 *
++	 * @param repaint_data Data returned by repaint_begin
++	 */
++	void (*repaint_cancel)(struct weston_compositor *compositor,
++			       void *repaint_data);
++
++	/** Conclude a repaint sequence
++	 *
++	 * Called on successful completion of a repaint sequence; see
++	 * repaint_begin.
++	 *
++	 * @param repaint_data Data returned by repaint_begin
++	 */
++	void (*repaint_flush)(struct weston_compositor *compositor,
++			      void *repaint_data);
+ };
+ 
+ struct weston_compositor {
+-- 
+1.9.1
+

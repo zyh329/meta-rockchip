@@ -1,0 +1,37 @@
+From d81cbdce23eaf1efd2f58f43972c2d629d88e7a7 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Armin=20Krezovi=C4=87?= <krezovic.armin@gmail.com>
+Date: Fri, 29 Jul 2016 13:26:23 +0200
+Subject: [PATCH 04/94] compositor-drm: Do not exit when there are no outputs
+ left
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When there are no outputs left after a hotplug event, weston
+will terminate. This isn't desired when trying to get weston
+to work with zero outputs.
+
+Signed-off-by: Armin Krezović <krezovic.armin@gmail.com>
+Reviewed-by: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+---
+ src/compositor-drm.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 64e820c..bd0fc1b 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -2641,10 +2641,6 @@ update_outputs(struct drm_backend *b, struct udev_device *drm_device)
+ 			}
+ 		}
+ 	}
+-
+-	/* FIXME: handle zero outputs, without terminating */
+-	if (b->connector_allocator == 0)
+-		weston_compositor_exit(b->compositor);
+ }
+ 
+ static int
+-- 
+1.9.1
+

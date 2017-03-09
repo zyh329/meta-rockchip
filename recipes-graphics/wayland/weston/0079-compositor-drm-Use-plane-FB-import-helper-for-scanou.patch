@@ -1,0 +1,99 @@
+From b4d3ecca83061c3f3f79a3c5971e223d886cd8ce Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Thu, 17 Nov 2016 17:33:08 +0000
+Subject: [PATCH 79/94] compositor-drm: Use plane FB-import helper for scanout
+
+Use the same codepath, which has the added advantage of being able to
+import dmabufs.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1521
+---
+ src/compositor-drm.c | 54 ++++++++++++----------------------------------------
+ 1 file changed, 12 insertions(+), 42 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index c1f4073..39deb6a 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -1597,29 +1597,27 @@ drm_output_prepare_scanout_view(struct drm_output_state *output_state,
+ 				struct weston_view *ev)
+ {
+ 	struct drm_output *output = output_state->output;
+-	struct drm_backend *b = to_drm_backend(output->base.compositor);
+ 	struct drm_plane *scanout_plane = output->scanout_plane;
+ 	struct drm_plane_state *state;
+-	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
+-	struct gbm_bo *bo;
+-
+-	/* Don't import buffers which span multiple outputs. */
+-	if (ev->output_mask != (1u << output->base.id))
+-		return NULL;
++	struct drm_fb *fb;
+ 
+-	/* We use GBM to import buffers. */
+-	if (b->gbm == NULL)
++	fb = drm_fb_get_from_view(output_state, ev);
++	if (!fb)
+ 		return NULL;
+ 
+-	if (buffer == NULL)
+-		return NULL;
+-	if (wl_shm_buffer_get(buffer->resource))
++	/* Can't change formats with just a pageflip */
++	if (fb->format->format != output->gbm_format) {
++		drm_fb_unref(fb);
+ 		return NULL;
++	}
+ 
+ 	state = drm_output_state_get_plane(output_state, scanout_plane);
+-	if (state->fb)
+-		goto err;
++	if (state->fb) {
++		drm_fb_unref(fb);
++		return NULL;
++	}
+ 
++	state->fb = fb;
+ 	state->output = output;
+ 	drm_plane_state_coords_for_view(state, ev);
+ 
+@@ -1632,34 +1630,6 @@ drm_output_prepare_scanout_view(struct drm_output_state *output_state,
+ 	    state->dest_h != (unsigned) output->base.current_mode->height)
+ 		goto err;
+ 
+-	if (ev->alpha != 1.0f)
+-		goto err;
+-
+-	bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
+-			   buffer->resource, GBM_BO_USE_SCANOUT);
+-
+-	/* Unable to use the buffer for scanout */
+-	if (!bo)
+-		goto err;
+-
+-	state = drm_output_state_get_plane(output_state, scanout_plane);
+-	state->fb = drm_fb_get_from_bo(bo, b, drm_view_is_opaque(ev),
+-				       BUFFER_CLIENT);
+-	if (!state->fb) {
+-		/* We need to explicitly destroy the BO. */
+-		gbm_bo_destroy(bo);
+-		goto err;
+-	}
+-
+-	/* Can't change formats with just a pageflip */
+-	if (state->fb->format->format != output->gbm_format) {
+-		/* No need to destroy the GBM BO here, as it's now owned
+-		 * by the FB. */
+-		goto err;
+-	}
+-
+-	drm_fb_set_buffer(state->fb, buffer);
+-
+ 	return &scanout_plane->base;
+ 
+ err:
+-- 
+1.9.1
+

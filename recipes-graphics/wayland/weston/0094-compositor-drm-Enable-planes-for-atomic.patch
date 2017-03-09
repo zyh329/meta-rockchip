@@ -1,0 +1,58 @@
+From 45bacd4717d07f51f4d9709347ff73e9d6d4335d Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Fri, 9 Dec 2016 16:00:12 +0000
+Subject: [PATCH 94/94] compositor-drm: Enable planes for atomic
+
+Now that we can sensibly test proposed plane configurations with atomic,
+sprites are not broken.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1537
+---
+ src/compositor-drm.c | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 43acfba..e2e08b5 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -3353,6 +3353,17 @@ init_drm(struct drm_backend *b, struct udev_device *device)
+ 	weston_log("DRM: %s atomic modesetting\n",
+ 		   b->atomic_modeset ? "supports" : "does not support");
+ 
++	/*
++	 * KMS support for hardware planes cannot properly synchronize
++	 * without nuclear page flip. Without nuclear/atomic, hw plane
++	 * and cursor plane updates would either tear or cause extra
++	 * waits for vblanks which means dropping the compositor framerate
++	 * to a fraction. For cursors, it's not so bad, so they are
++	 * enabled.
++	 */
++	if (!b->atomic_modeset)
++		b->sprites_are_broken = 1;
++
+ 	return 0;
+ }
+ 
+@@ -5255,17 +5266,6 @@ drm_backend_create(struct weston_compositor *compositor,
+ 	wl_array_init(&b->unused_crtcs);
+ 	wl_array_init(&b->unused_connectors);
+ 
+-	/*
+-	 * KMS support for hardware planes cannot properly synchronize
+-	 * without nuclear page flip. Without nuclear/atomic, hw plane
+-	 * and cursor plane updates would either tear or cause extra
+-	 * waits for vblanks which means dropping the compositor framerate
+-	 * to a fraction. For cursors, it's not so bad, so they are
+-	 * enabled.
+-	 *
+-	 * These can be enabled again when nuclear/atomic support lands.
+-	 */
+-	b->sprites_are_broken = 1;
+ 	b->compositor = compositor;
+ 	b->use_pixman = config->use_pixman;
+ 	b->configure_output = config->configure_output;
+-- 
+1.9.1
+

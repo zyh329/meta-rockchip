@@ -1,0 +1,105 @@
+From c671f61cbe1522fd8147915229ae6163235470b6 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Thu, 17 Nov 2016 18:17:16 +0000
+Subject: [PATCH 80/94] compositor-drm: Remove no_addfb2 handling
+
+If AddFB2 ever fails for any reason, we fall back to legacy AddFB, which
+doesn't support the same swathe of formats, or multi-planar formats, or
+modifiers.
+
+This can happen with arbitrary client buffers, condemning us to the
+fallback forever more. Remove this, at the cost of an unnecessary ioctl
+for users on old kernels without AddFB2; unfortunately, we cannot detect
+the complete absence of the ioctl, as the return here is -EINVAL rather
+than -ENOTTY.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1522
+---
+ src/compositor-drm.c | 46 ++++++++++++----------------------------------
+ 1 file changed, 12 insertions(+), 34 deletions(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 39deb6a..73b73c3 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -202,7 +202,6 @@ struct drm_backend {
+ 	 */
+ 	int min_width, max_width;
+ 	int min_height, max_height;
+-	int no_addfb2;
+ 
+ 	struct wl_list plane_list;
+ 	int sprites_are_broken;
+@@ -798,6 +797,7 @@ drm_fb_create_dumb(struct drm_backend *b, int width, int height,
+ 	struct drm_mode_create_dumb create_arg;
+ 	struct drm_mode_destroy_dumb destroy_arg;
+ 	struct drm_mode_map_dumb map_arg;
++	uint32_t handles[4] = { 0 }, pitches[4] = { 0 }, offsets[4] = { 0 };
+ 
+ 	fb = zalloc(sizeof *fb);
+ 	if (!fb)
+@@ -837,23 +837,12 @@ drm_fb_create_dumb(struct drm_backend *b, int width, int height,
+ 
+ 	ret = -1;
+ 
+-	if (!b->no_addfb2) {
+-		uint32_t handles[4] = { 0 }, pitches[4] = { 0 }, offsets[4] = { 0 };
+-
+-		handles[0] = fb->handle;
+-		pitches[0] = fb->stride;
+-		offsets[0] = 0;
+-
+-		ret = drmModeAddFB2(b->drm.fd, width, height,
+-				    fb->format->format,
+-				    handles, pitches, offsets,
+-				    &fb->fb_id, 0);
+-		if (ret) {
+-			weston_log("addfb2 failed: %m\n");
+-			b->no_addfb2 = 1;
+-		}
+-	}
++	handles[0] = fb->handle;
++	pitches[0] = fb->stride;
++	offsets[0] = 0;
+ 
++	ret = drmModeAddFB2(b->drm.fd, width, height, fb->format->format,
++			    handles, pitches, offsets, &fb->fb_id, 0);
+ 	if (ret) {
+ 		ret = drmModeAddFB(b->drm.fd, width, height,
+ 				   fb->format->depth, fb->format->bpp,
+@@ -940,24 +929,13 @@ drm_fb_get_from_bo(struct gbm_bo *bo, struct drm_backend *backend,
+ 		goto err_free;
+ 	}
+ 
+-	ret = -1;
+-
+-	if (!backend->no_addfb2) {
+-		handles[0] = fb->handle;
+-		pitches[0] = fb->stride;
+-		offsets[0] = 0;
+-
+-		ret = drmModeAddFB2(backend->drm.fd, fb->width, fb->height,
+-				    fb->format->format,
+-				    handles, pitches, offsets,
+-				    &fb->fb_id, 0);
+-		if (ret) {
+-			weston_log("addfb2 failed: %m\n");
+-			backend->no_addfb2 = 1;
+-			backend->sprites_are_broken = 1;
+-		}
+-	}
++	handles[0] = fb->handle;
++	pitches[0] = fb->stride;
++	offsets[0] = 0;
+ 
++	ret = drmModeAddFB2(backend->drm.fd, fb->width, fb->height,
++			    fb->format->format, handles, pitches, offsets,
++			    &fb->fb_id, 0);
+ 	if (ret && fb->format->depth && fb->format->bpp)
+ 		ret = drmModeAddFB(backend->drm.fd, fb->width, fb->height,
+ 				   fb->format->depth, fb->format->bpp,
+-- 
+1.9.1
+

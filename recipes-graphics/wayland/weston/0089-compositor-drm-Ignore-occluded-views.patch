@@ -1,0 +1,82 @@
+From edbe1c7950e68554b6336417ef74c7b1a48f2fa0 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Fri, 9 Dec 2016 18:03:31 +0000
+Subject: [PATCH 89/94] compositor-drm: Ignore occluded views
+
+When trying to assign planes, keep track of the areas which are
+already occluded, and ignore views which are completely occluded. This
+allows us to build a state using planes only, when there are occluded
+views which cannot go into a plane behind views which can.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+
+Differential Revision: https://phabricator.freedesktop.org/D1531
+---
+ src/compositor-drm.c | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/src/compositor-drm.c b/src/compositor-drm.c
+index 6ddf84f..834c37b 100644
+--- a/src/compositor-drm.c
++++ b/src/compositor-drm.c
+@@ -2815,7 +2815,7 @@ drm_output_propose_state(struct weston_output *output_base,
+ 	struct drm_output *output = to_drm_output(output_base);
+ 	struct drm_output_state *state;
+ 	struct weston_view *ev;
+-	pixman_region32_t surface_overlap, renderer_region;
++	pixman_region32_t surface_overlap, renderer_region, occluded_region;
+ 	struct weston_plane *primary = &output_base->compositor->primary_plane;
+ 
+ 	assert(!output->state_last);
+@@ -2837,9 +2837,11 @@ drm_output_propose_state(struct weston_output *output_base,
+ 	 * as we do for flipping full screen surfaces.
+ 	 */
+ 	pixman_region32_init(&renderer_region);
++	pixman_region32_init(&occluded_region);
+ 
+ 	wl_list_for_each(ev, &output_base->compositor->view_list, link) {
+ 		struct weston_plane *next_plane = NULL;
++		bool occluded = false;
+ 
+ 		/* If this view doesn't touch our output at all, there's no
+ 		 * reason to do anything with it. */
+@@ -2851,6 +2853,16 @@ drm_output_propose_state(struct weston_output *output_base,
+ 		if (ev->output_mask != (1u << output->base.id))
+ 			next_plane = primary;
+ 
++		/* Ignore views we know to be totally occluded. */
++		pixman_region32_init(&surface_overlap);
++		pixman_region32_subtract(&surface_overlap,
++					 &ev->transform.boundingbox,
++					 &occluded_region);
++		occluded = !pixman_region32_not_empty(&surface_overlap);
++		pixman_region32_fini(&surface_overlap);
++		if (occluded)
++			continue;
++
+ 		/* Since we process views from top to bottom, we know that if
+ 		 * the view intersects the calculated renderer region, it must
+ 		 * be part of, or occluded by, it, and cannot go on a plane. */
+@@ -2861,6 +2873,11 @@ drm_output_propose_state(struct weston_output *output_base,
+ 			next_plane = primary;
+ 		pixman_region32_fini(&surface_overlap);
+ 
++		if (drm_view_is_opaque(ev))
++			pixman_region32_union(&occluded_region,
++					      &occluded_region,
++					      &ev->transform.boundingbox);
++
+ 		if (next_plane == NULL)
+ 			next_plane = drm_output_prepare_cursor_view(state, ev);
+ 		if (next_plane == NULL)
+@@ -2876,6 +2893,7 @@ drm_output_propose_state(struct weston_output *output_base,
+ 					      &ev->transform.boundingbox);
+ 	}
+ 	pixman_region32_fini(&renderer_region);
++	pixman_region32_fini(&occluded_region);
+ 
+ 	return state;
+ }
+-- 
+1.9.1
+

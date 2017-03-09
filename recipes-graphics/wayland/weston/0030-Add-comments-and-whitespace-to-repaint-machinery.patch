@@ -1,0 +1,60 @@
+From ee8937d7eb18f508bca77ad0868d852d7aa26660 Mon Sep 17 00:00:00 2001
+From: Daniel Stone <daniels@collabora.com>
+Date: Mon, 16 Jan 2017 15:38:54 +0000
+Subject: [PATCH 30/94] Add comments and whitespace to repaint machinery
+
+repaint_needed / repaint_scheduled are surprisingly subtle. Explode the
+conditional with side-effects into more obvious separate calls, and
+document what they do.
+
+Signed-off-by: Daniel Stone <daniels@collabora.com>
+Reviewed-by: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+---
+ src/compositor.c | 27 +++++++++++++++++++++------
+ 1 file changed, 21 insertions(+), 6 deletions(-)
+
+diff --git a/src/compositor.c b/src/compositor.c
+index 8dc2144..6f6de10 100644
+--- a/src/compositor.c
++++ b/src/compositor.c
+@@ -2426,16 +2426,31 @@ output_repaint_timer_handler(void *data)
+ {
+ 	struct weston_output *output = data;
+ 	struct weston_compositor *compositor = output->compositor;
++	int ret;
+ 
+-	if (output->repaint_needed &&
+-	    compositor->state != WESTON_COMPOSITOR_SLEEPING &&
+-	    compositor->state != WESTON_COMPOSITOR_OFFSCREEN &&
+-	    weston_output_repaint(output) == 0)
+-		return 0;
++	/* If we're sleeping, drop the repaint machinery entirely; we will
++	 * explicitly repaint all outputs when we come back. */
++	if (compositor->state == WESTON_COMPOSITOR_SLEEPING ||
++	    compositor->state == WESTON_COMPOSITOR_OFFSCREEN)
++		goto err;
+ 
+-	weston_output_schedule_repaint_reset(output);
++	/* We don't actually need to repaint this output; drop it from
++	 * repaint until something causes damage. */
++	if (!output->repaint_needed)
++		goto err;
++
++	/* If repaint fails, we aren't going to get weston_output_finish_frame
++	 * to trigger a new repaint, so drop it from repaint and hope
++	 * something later schedules a successful repaint. */
++	ret = weston_output_repaint(output);
++	if (ret != 0)
++		goto err;
+ 
+ 	return 0;
++
++err:
++	weston_output_schedule_repaint_reset(output);
++	return 0;
+ }
+ 
+ WL_EXPORT void
+-- 
+1.9.1
+
