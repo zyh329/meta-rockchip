@@ -39,6 +39,8 @@ MALI_WAYLAND_rk3288 = "arm-linux-gnueabihf/libmali-midgard-r13p0-r0p0-wayland.so
 MALI_GBM_rk3288 = "arm-linux-gnueabihf/libmali-midgard-r13p0-r0p0-gbm.so "
 
 MALI_X11_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r6p0.so"
+MALI_WAYLAND_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r7p0-wayland.so"
+MALI_GBM_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r7p0-gbm.so"
 
 MALI_X11_rk3399 = "aarch64-linux-gnu/libmali-midgard-4th-r9p0.so"
 
@@ -77,6 +79,7 @@ FILES_${PN} += "${libdir}/*.so"
 
 RREPLACES_${PN} = "libegl libgles1 libglesv1-cm1 libgles2 libglesv2-2 libgbm"
 RCONFLICTS_${PN} = "libegl libgles1 libglesv1-cm1 libgles2 libglesv2-2 libgbm"
+RPROVIDES_${PN} += "libegl libgles1 libglesv1-cm1 libgles2 libglesv2-2 libgbm"
 
 # Workaround: libmali.so provided by rk having no SONAME field in it
 # so add it to fix rdepends problems
