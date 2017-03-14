@@ -1,7 +1,7 @@
-SUMMARY = "Userspace mali driver"
-DESCRIPTION = "Userspace mali driver"
-LICENSE = "CLOSED"
+DESCRIPTION = "GLES libraries for Rockchip SoCs for a family of Mali GPU"
 SECTION = "libs"
+LICENSE = "BINARY"
+LIC_FILES_CHKSUM = "file://LICENSE.TXT;md5=564e729dd65db6f65f911ce0cd340cf9"
 
 COMPATIBLE_MACHINE = "(rk3036|rk3288|rk3399)"
 
@@ -43,6 +43,8 @@ MALI_WAYLAND_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r7p0-wayland.so"
 MALI_GBM_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r7p0-gbm.so"
 
 MALI_X11_rk3399 = "aarch64-linux-gnu/libmali-midgard-4th-r9p0.so"
+MALI_WAYLAND_rk3399 = "aarch64-linux-gnu/libmali-midgard-4th-r9p0-wayland.so"
+MALI_GBM_rk3399 = "aarch64-linux-gnu/libmali-midgard-4th-r9p0-gbm.so"
 
 do_configure[noexec] = "1"
 do_compile[noexec] = "1"
