@@ -3,7 +3,7 @@
 
 SOC_FAMILY = "rk3036"
 
-require conf/machine/include/tune-cortexa9.inc
+require conf/machine/include/tune-cortexa7.inc
 require conf/machine/include/soc-family.inc
 
 PREFERRED_PROVIDER_virtual/kernel = "linux"
