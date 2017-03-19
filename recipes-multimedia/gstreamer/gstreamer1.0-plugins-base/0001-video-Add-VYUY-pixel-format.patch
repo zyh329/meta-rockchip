@@ -1,0 +1,254 @@
+From 7a40442ad5430d954470bc4e3e50cd38e025e7b0 Mon Sep 17 00:00:00 2001
+From: Nicolas Dufresne <nicolas.dufresne@collabora.com>
+Date: Wed, 7 Sep 2016 15:01:13 -0400
+Subject: [PATCH] video: Add VYUY pixel format
+
+This format is sometimes the output of JPEG decoders. It is the same as
+YUY2 and UYVY but with a different component order.
+
+https://bugzilla.gnome.org/show_bug.cgi?id=767450
+---
+ ext/pango/gstbasetextoverlay.c       |  1 +
+ gst-libs/gst/video/video-converter.c |  2 +
+ gst-libs/gst/video/video-format.c    | 80 ++++++++++++++++++++++++++++++++++++
+ gst-libs/gst/video/video-format.h    |  4 +-
+ gst-libs/gst/video/video-info.c      |  1 +
+ gst-libs/gst/video/video-orc.orc     | 31 ++++++++++++++
+ tests/check/libs/video.c             |  1 +
+ 7 files changed, 119 insertions(+), 1 deletion(-)
+
+diff --git a/ext/pango/gstbasetextoverlay.c b/ext/pango/gstbasetextoverlay.c
+index d2cdc23..1efe703 100644
+--- a/ext/pango/gstbasetextoverlay.c
++++ b/ext/pango/gstbasetextoverlay.c
+@@ -2158,6 +2158,7 @@ gst_base_text_overlay_shade_background (GstBaseTextOverlay * overlay,
+       break;
+     case GST_VIDEO_FORMAT_AYUV:
+     case GST_VIDEO_FORMAT_UYVY:
++    case GST_VIDEO_FORMAT_VYUY:
+     case GST_VIDEO_FORMAT_YUY2:
+     case GST_VIDEO_FORMAT_v308:
+     case GST_VIDEO_FORMAT_IYU2:
+diff --git a/gst-libs/gst/video/video-converter.c b/gst-libs/gst/video/video-converter.c
+index e67a32a..5e2f199 100644
+--- a/gst-libs/gst/video/video-converter.c
++++ b/gst-libs/gst/video/video-converter.c
+@@ -4037,6 +4037,7 @@ get_scale_format (GstVideoFormat format, gint plane)
+       break;
+     case GST_VIDEO_FORMAT_YUY2:
+     case GST_VIDEO_FORMAT_UYVY:
++    case GST_VIDEO_FORMAT_VYUY:
+     case GST_VIDEO_FORMAT_YVYU:
+     case GST_VIDEO_FORMAT_AYUV:
+     case GST_VIDEO_FORMAT_RGBx:
+@@ -4107,6 +4108,7 @@ is_merge_yuv (GstVideoInfo * info)
+     case GST_VIDEO_FORMAT_YUY2:
+     case GST_VIDEO_FORMAT_YVYU:
+     case GST_VIDEO_FORMAT_UYVY:
++    case GST_VIDEO_FORMAT_VYUY:
+       return TRUE;
+     default:
+       return FALSE;
+diff --git a/gst-libs/gst/video/video-format.c b/gst-libs/gst/video/video-format.c
+index 97fbc8a..7ef5769 100644
+--- a/gst-libs/gst/video/video-format.c
++++ b/gst-libs/gst/video/video-format.c
+@@ -302,6 +302,82 @@ pack_UYVY (const GstVideoFormatInfo * info, GstVideoPackFlags flags,
+   }
+ }
+ 
++#define PACK_VYUY GST_VIDEO_FORMAT_AYUV, unpack_VYUY, 1, pack_VYUY
++static void
++unpack_VYUY (const GstVideoFormatInfo * info, GstVideoPackFlags flags,
++    gpointer dest, const gpointer data[GST_VIDEO_MAX_PLANES],
++    const gint stride[GST_VIDEO_MAX_PLANES], gint x, gint y, gint width)
++{
++  const guint8 *s = GET_LINE (y);
++  guint8 *d = dest;
++
++  s += (x & ~1) << 1;
++  if (x & 1) {
++    d[0] = 0xff;
++    d[1] = s[3];
++    d[2] = s[0];
++    d[3] = s[2];
++    s += 4;
++    d += 4;
++    width--;
++  }
++
++  if (IS_ALIGNED (d, 8))
++    video_orc_unpack_VYUY (d, s, width / 2);
++  else {
++    gint i;
++
++    for (i = 0; i < width / 2; i++) {
++      d[i * 8 + 0] = 0xff;
++      d[i * 8 + 1] = s[i * 4 + 1];
++      d[i * 8 + 2] = s[i * 4 + 0];
++      d[i * 8 + 3] = s[i * 4 + 2];
++      d[i * 8 + 4] = 0xff;
++      d[i * 8 + 5] = s[i * 4 + 3];
++      d[i * 8 + 6] = s[i * 4 + 0];
++      d[i * 8 + 7] = s[i * 4 + 2];
++    }
++  }
++
++  if (width & 1) {
++    gint i = width - 1;
++
++    d[i * 4 + 0] = 0xff;
++    d[i * 4 + 1] = s[i * 2 + 1];
++    d[i * 4 + 2] = s[i * 2 + 0];
++    d[i * 4 + 3] = s[i * 2 + 2];
++  }
++}
++
++static void
++pack_VYUY (const GstVideoFormatInfo * info, GstVideoPackFlags flags,
++    const gpointer src, gint sstride, gpointer data[GST_VIDEO_MAX_PLANES],
++    const gint stride[GST_VIDEO_MAX_PLANES], GstVideoChromaSite chroma_site,
++    gint y, gint width)
++{
++  guint8 *restrict d = GET_LINE (y);
++  const guint8 *restrict s = src;
++
++  if (IS_ALIGNED (s, 8))
++    video_orc_pack_VYUY (d, s, width / 2);
++  else {
++    gint i;
++    for (i = 0; i < width / 2; i++) {
++      d[i * 4 + 0] = s[i * 8 + 2];
++      d[i * 4 + 1] = s[i * 8 + 1];
++      d[i * 4 + 2] = s[i * 8 + 3];
++      d[i * 4 + 3] = s[i * 8 + 5];
++    }
++  }
++  if (width & 1) {
++    gint i = width - 1;
++
++    d[i * 2 + 0] = s[i * 4 + 2];
++    d[i * 2 + 1] = s[i * 4 + 1];
++    d[i * 2 + 2] = s[i * 4 + 3];
++  }
++}
++
+ #define PACK_YVYU GST_VIDEO_FORMAT_AYUV, unpack_YVYU, 1, pack_YVYU
+ static void
+ unpack_YVYU (const GstVideoFormatInfo * info, GstVideoPackFlags flags,
+@@ -3864,6 +3940,8 @@ static const VideoFormat formats[] = {
+       PSTR244, PLANE011, OFFS001, SUB420, PACK_P010_10LE),
+   MAKE_YUV_FORMAT (IYU2, "raw video", GST_MAKE_FOURCC ('I', 'Y', 'U', '2'),
+       DPTH888, PSTR333, PLANE0, OFFS102, SUB444, PACK_IYU2),
++  MAKE_YUV_FORMAT (VYUY, "raw video", GST_MAKE_FOURCC ('V', 'Y', 'U', 'Y'),
++      DPTH888, PSTR244, PLANE0, OFFS102, SUB422, PACK_VYUY),
+ };
+ 
+ static GstVideoFormat
+@@ -4050,6 +4128,8 @@ gst_video_format_from_fourcc (guint32 fourcc)
+       return GST_VIDEO_FORMAT_YVYU;
+     case GST_MAKE_FOURCC ('U', 'Y', 'V', 'Y'):
+       return GST_VIDEO_FORMAT_UYVY;
++    case GST_MAKE_FOURCC ('V', 'Y', 'U', 'Y'):
++      return GST_VIDEO_FORMAT_VYUY;
+     case GST_MAKE_FOURCC ('A', 'Y', 'U', 'V'):
+       return GST_VIDEO_FORMAT_AYUV;
+     case GST_MAKE_FOURCC ('Y', '4', '1', 'B'):
+diff --git a/gst-libs/gst/video/video-format.h b/gst-libs/gst/video/video-format.h
+index e7f83d8..c5eabf0 100644
+--- a/gst-libs/gst/video/video-format.h
++++ b/gst-libs/gst/video/video-format.h
+@@ -38,6 +38,7 @@ G_BEGIN_DECLS
+  * @GST_VIDEO_FORMAT_YV12: planar 4:2:0 YVU (like I420 but UV planes swapped)
+  * @GST_VIDEO_FORMAT_YUY2: packed 4:2:2 YUV (Y0-U0-Y1-V0 Y2-U2-Y3-V2 Y4 ...)
+  * @GST_VIDEO_FORMAT_UYVY: packed 4:2:2 YUV (U0-Y0-V0-Y1 U2-Y2-V2-Y3 U4 ...)
++ * @GST_VIDEO_FORMAT_VYUY: packed 4:2:2 YUV (V0-Y0-U0-Y1 V2-Y2-U2-Y3 V4 ...)
+  * @GST_VIDEO_FORMAT_AYUV: packed 4:4:4 YUV with alpha channel (A0-Y0-U0-V0 ...)
+  * @GST_VIDEO_FORMAT_RGBx: sparse rgb packed into 32 bit, space last
+  * @GST_VIDEO_FORMAT_BGRx: sparse reverse rgb packed into 32 bit, space last
+@@ -164,6 +165,7 @@ typedef enum {
+   GST_VIDEO_FORMAT_P010_10BE,
+   GST_VIDEO_FORMAT_P010_10LE,
+   GST_VIDEO_FORMAT_IYU2,
++  GST_VIDEO_FORMAT_VYUY,
+ } GstVideoFormat;
+ 
+ #define GST_VIDEO_MAX_PLANES 4
+@@ -496,7 +498,7 @@ gconstpointer  gst_video_format_get_palette          (GstVideoFormat format, gsi
+ # define GST_VIDEO_OE(s) G_STRINGIFY(s)"_LE"
+ #endif
+ 
+-#define GST_VIDEO_FORMATS_ALL "{ I420, YV12, YUY2, UYVY, AYUV, RGBx, "  \
++#define GST_VIDEO_FORMATS_ALL "{ I420, YV12, YUY2, UYVY, VYUY, AYUV, RGBx, "  \
+     "BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, RGB, BGR, Y41B, Y42B, "  \
+     "YVYU, Y444, v210, v216, NV12, NV21, NV16, NV61, NV24, GRAY8, GRAY16_BE, " \
+     "GRAY16_LE, v308, IYU2, RGB16, BGR16, RGB15, BGR15, UYVP, A420, RGB8P, YUV9, YVU9, " \
+diff --git a/gst-libs/gst/video/video-info.c b/gst-libs/gst/video/video-info.c
+index 57b9db7..f42b8c9 100644
+--- a/gst-libs/gst/video/video-info.c
++++ b/gst-libs/gst/video/video-info.c
+@@ -615,6 +615,7 @@ fill_planes (GstVideoInfo * info)
+     case GST_VIDEO_FORMAT_YUY2:
+     case GST_VIDEO_FORMAT_YVYU:
+     case GST_VIDEO_FORMAT_UYVY:
++    case GST_VIDEO_FORMAT_VYUY:
+       info->stride[0] = GST_ROUND_UP_4 (width * 2);
+       info->offset[0] = 0;
+       info->size = info->stride[0] * height;
+diff --git a/gst-libs/gst/video/video-orc.orc b/gst-libs/gst/video/video-orc.orc
+index 5af6c90..3399c81 100644
+--- a/gst-libs/gst/video/video-orc.orc
++++ b/gst-libs/gst/video/video-orc.orc
+@@ -162,6 +162,37 @@ mergewl uvuv, uv, uv
+ x2 mergewl ayuv, ayay, uvuv
+ 
+ 
++.function video_orc_pack_VYUY
++.dest 4 vyuy guint8
++.source 8 ayuv guint8
++.temp 2 yy
++.temp 2 vu
++.temp 4 ayay
++.temp 4 uvuv
++
++x2 splitlw uvuv, ayay, ayuv
++select0lw vu, uvuv
++x2 select1wb yy, ayay
++swapw vu, vu
++x2 mergebw vyuy, vu, yy
++
++
++.function video_orc_unpack_VYUY
++.dest 8 ayuv guint8
++.source 4 vyuy guint8
++.const 2 c255 0xff
++.temp 2 yy
++.temp 2 uv
++.temp 4 ayay
++.temp 4 uvuv
++
++x2 splitwb yy, uv, vyuy
++swapw uv, uv
++x2 mergebw ayay, c255, yy
++mergewl uvuv, uv, uv
++x2 mergewl ayuv, ayay, uvuv
++
++
+ .function video_orc_unpack_YVYU
+ .dest 8 ayuv guint8
+ .source 4 uyvy guint8
+diff --git a/tests/check/libs/video.c b/tests/check/libs/video.c
+index d37c0b5..0f62cd8 100644
+--- a/tests/check/libs/video.c
++++ b/tests/check/libs/video.c
+@@ -347,6 +347,7 @@ video_format_is_packed (GstVideoFormat fmt)
+     case GST_VIDEO_FORMAT_YUY2:
+     case GST_VIDEO_FORMAT_YVYU:
+     case GST_VIDEO_FORMAT_UYVY:
++    case GST_VIDEO_FORMAT_VYUY:
+     case GST_VIDEO_FORMAT_AYUV:
+     case GST_VIDEO_FORMAT_RGBx:
+     case GST_VIDEO_FORMAT_BGRx:
+-- 
+2.7.4
+
