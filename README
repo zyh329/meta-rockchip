@@ -136,6 +136,6 @@ has these same goals, or you can add settings in your configuration files
 (e.g. local.conf) as follows:
 
 	for rk3288:
-		DEFAULTTUNE = "cortexa17hf-neon-vfpv4"
+		DEFAULTTUNE = "cortexa17hf-neon"
 	for rk3066:
 		DEFAULTTUNE = "cortexa9-neon"
