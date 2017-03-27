@@ -15,4 +15,4 @@ PREFERRED_PROVIDER_virtual/bootloader ?= "u-boot-rockchip"
 SPL_BINARY ?= "u-boot-spl-dtb.bin"
 
 IMAGE_FSTYPES = "ext4 rockchip-gpt-img"
-IMAGE_CLASSES += "rockchip-gpt-img"
+IMAGE_CLASSES += "rockchip-gpt-img rockchip-update-img"
