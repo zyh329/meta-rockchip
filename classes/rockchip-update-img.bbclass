@@ -1,4 +1,5 @@
 # Copyright (C) 2014 NEO-Technologies
+# Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd
 # Released under the MIT license (see COPYING.MIT for the terms)
 
 inherit image_types
@@ -6,36 +7,33 @@ inherit image_types
 # This image depends on the rootfs ext4 image
 IMAGE_TYPEDEP_rockchip-update-img = "ext4"
 
-DEPENDS = "mkbootimg-native rockchip-bootloader virtual/kernel"
+IMAGE_DEPENDS_rockchip-update-img  = " \
+    rk-binary-loader \
+    rk-binary-native \
+    virtual/kernel:do_deploy"
 
-FIRMWARE_VER  ?= "1.0"
-MANUFACTURER  ?= "NEO-Technologies"
-MACHINE_MODEL ?= "${MACHINE}"
-CMDLINE       ?= "console=ttyFIQ0 root=/dev/block/mtd/by-name/linuxroot rw rootfstype=ext4 rootdelay=1"
-MTDPARTS      ?= "0x00008000@0x00002000(boot),-@0x0000A000(linuxroot)"
+FIRMWARE_VER ?= "1.0"
+MANUFACTURER ?= "Rockchip"
+MACHINE_MODEL?= "${MACHINE}"
 
-PACKAGE_FILE = "package-file"
+ATAG_rk3288 ?= "0x60000800"
+CMDLINE_rk3288 ?= "console=ttyS2,115200n8 root=/dev/mmcblk2p6 rw rootfstype=ext4 init=/sbin/init"
+MTDPARTS_rk3288 ?= "0x00002000@0x00002000(uboot),0x00002000@0x00004000(misc),0x00001000@0x00006000(resource),0x00007000@0x00007000(kernel),0x00010000@0x0000E000(boot),-@0x0001e000(linuxroot)"
+
+ATAG_rk3399 ?= "0x00200800"
+CMDLINE_rk3399 ?= "androidboot.baseband=N/A androidboot.selinux=permissive androidboot.hardware=rk30board androidboot.console=ttyFIQ0 root=/dev/mmcblk1p5 rw rootfstype=ext4"
+MTDPARTS_rk3399 ?= "0x00002000@0x00002000(uboot),0x00002000@0x00004000(trust),0x00008000@0x00006000(resource),0x00009000@0x0000e000(kernel),-@0x00017000(boot)"
+
 PARAMETER    = "parameter"
-LOADER       = "loader.bin"
-KERNEL_IMG   = "${KERNEL_IMAGETYPE}"
-INITRD_IMG   = "initrd.img"
-BOOT_IMG     = "boot.img"
-RAW_IMG      = "${IMAGE_NAME}.raw.img"
-UPDATE_IMG   = "${IMAGE_NAME}.update.img"
+LOADER_BIN   = "loader.bin"
+UBOOT_IMG   = "uboot.img"
+TRUST_IMG   = "trust.img"
+KERNEL_IMG   = "kernel.img"
+RESOURCE_IMG   = "resource.img"
 
 IMAGE_CMD_rockchip-update-img () {
     # Change to image directory
     cd ${DEPLOY_DIR_IMAGE}
-
-    # Create package-file
-    cat > ${PACKAGE_FILE} << EOF
-# NAME		Relative path
-package-file	${PACKAGE_FILE}
-bootloader	${LOADER}
-parameter	${PARAMETER}
-boot		${BOOT_IMG}
-linuxroot	${IMAGE_NAME}.rootfs.ext4
-EOF
 
     # Create parameter
     cat > ${PARAMETER} << EOF
@@ -44,21 +42,18 @@ MACHINE_MODEL:${MACHINE}
 MACHINE_ID:007
 MANUFACTURER:${MANUFACTURER}
 MAGIC: 0x5041524B
-ATAG: 0x60000800
-MACHINE: 3066
+ATAG: ${ATAG}
+MACHINE: rk3x
 CHECK_MASK: 0x80
-KERNEL_IMG: 0x60408000
+PWR_HLD: 0,0,A,0,1
 #RECOVER_KEY: 1,1,0,20,0
 CMDLINE:${CMDLINE} initrd=0x62000000,0x00800000 mtdparts=rk29xxnand:${MTDPARTS}
 EOF
 
-    # Create boot.img
-    mkbootimg --kernel ${KERNEL_IMG} --ramdisk ${INITRD_IMG} -o ${BOOT_IMG}
+    # Create kernel.img
+    mkkrnlimg ${KERNEL_IMAGETYPE} ${KERNEL_IMG}
 
-    # Build update.img using afptool and img_maker
-    afptool -pack . ${RAW_IMG}
-    img_maker -rk31 ${LOADER} 1 0 0 ${RAW_IMG} ${UPDATE_IMG}
-
-    # Clean directory
-    rm ${PACKAGE_FILE} ${PARAMETER} ${BOOT_IMG} ${RAW_IMG}
+    # Create resource.img
+    KERNEL_DEVICETREE=${KERNEL_DEVICETREE##*/}
+    resource_tool  ${KERNEL_IMAGETYPE}-${KERNEL_DEVICETREE}
 }
