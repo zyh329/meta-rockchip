@@ -54,6 +54,8 @@ EOF
     mkkrnlimg ${KERNEL_IMAGETYPE} ${KERNEL_IMG}
 
     # Create resource.img
-    KERNEL_DEVICETREE=${KERNEL_DEVICETREE##*/}
-    resource_tool  ${KERNEL_IMAGETYPE}-${KERNEL_DEVICETREE}
+	for DTS_FILE in ${KERNEL_DEVICETREE}; do
+		DTS_FILE=${DTS_FILE##*/}
+		resource_tool  ${KERNEL_IMAGETYPE}-${DTS_FILE}
+	done
 }
