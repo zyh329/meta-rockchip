@@ -35,13 +35,17 @@ INHIBIT_PACKAGE_STRIP = "1"
 USE_X11 = "${@bb.utils.contains("DISTRO_FEATURES", "x11", "yes", "no", d)}"
 USE_WL = "${@bb.utils.contains("DISTRO_FEATURES", "wayland", "yes", "no", d)}"
 
+MALI_X11_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r6p0.so"
+MALI_WAYLAND_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r7p0-wayland.so"
+MALI_GBM_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r7p0-gbm.so"
+
 MALI_X11_rk3288 = "arm-linux-gnueabihf/libmali-midgard-r9p0-r0p0.so"
 MALI_WAYLAND_rk3288 = "arm-linux-gnueabihf/libmali-midgard-r13p0-r0p0-wayland.so "
 MALI_GBM_rk3288 = "arm-linux-gnueabihf/libmali-midgard-r13p0-r0p0-gbm.so "
 
-MALI_X11_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r6p0.so"
-MALI_WAYLAND_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r7p0-wayland.so"
-MALI_GBM_rk3036 = "arm-linux-gnueabihf/libmali-utgard-r7p0-gbm.so"
+MALI_X11_rk3328 = "aarch64-linux-gnu/libmali-utgard-2th-r7p0.so"
+MALI_WAYLAND_rk3328 = "aarch64-linux-gnu/libmali-utgard-2th-r7p0-wayland.so"
+MALI_GBM_rk3328 = "aarch64-linux-gnu/libmali-utgard-2th-r7p0-gbm.so"
 
 MALI_X11_rk3399 = "aarch64-linux-gnu/libmali-midgard-4th-r9p0.so"
 MALI_WAYLAND_rk3399 = "aarch64-linux-gnu/libmali-midgard-4th-r9p0-wayland.so"
