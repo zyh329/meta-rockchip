@@ -6,8 +6,8 @@ NO_GENERIC_LICENSE[BINARY] = "LICENSE.TXT"
 
 DEPENDS = "rk-binary-native"
 
-SRCREV = "${AUTOREV}"
 SRC_URI = "git://github.com/rockchip-linux/rkbin.git"
+SRCREV = "${AUTOREV}"
 S = "${WORKDIR}/git"
 
 LOADER_rk3036 ?= "rk30/RK3036MiniLoaderAll_V2.19.bin"
@@ -16,19 +16,19 @@ LOADER_rk3399 ?= "rk33/RK3399MiniLoaderAll_V1.05.bin"
 
 inherit deploy
 
-LOADER_BIN   = "loader.bin"
-UBOOT_IMG   = "uboot.img"
-TRUST_IMG   = "trust.img"
+LOADER_BIN	= "loader.bin"
+UBOOT_IMG	= "uboot.img"
+TRUST_IMG	= "trust.img"
 
 do_deploy() {
-    install -d ${DEPLOYDIR}
-    install "${S}/${LOADER}" ${DEPLOYDIR}/${LOADER_BIN}
+	install -d ${DEPLOYDIR}
+	install "${S}/${LOADER}" ${DEPLOYDIR}/${LOADER_BIN}
 }
 
 do_deploy_append_rk3399() {
-    install -d ${DEPLOYDIR}
-    install "${S}/img/rk3399/${UBOOT_IMG}" ${DEPLOYDIR}/${UBOOT_IMG}
-    install "${S}/img/rk3399/${TRUST_IMG}" ${DEPLOYDIR}/${TRUST_IMG}
+	install -d ${DEPLOYDIR}
+	install "${S}/img/rk3399/${UBOOT_IMG}" ${DEPLOYDIR}/${UBOOT_IMG}
+	install "${S}/img/rk3399/${TRUST_IMG}" ${DEPLOYDIR}/${TRUST_IMG}
 }
 
 addtask deploy before do_build after do_compile

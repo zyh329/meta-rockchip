@@ -2,7 +2,7 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
 
 SRC_URI_append = " \
-    file://10-rk.rules \
+	file://10-rk.rules \
 "
 
 do_install_prepend () {

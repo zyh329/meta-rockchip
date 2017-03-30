@@ -7,29 +7,28 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384
 PROVIDES = "drm"
 DEPENDS = "libpthread-stubs udev libpciaccess"
 
-SRCREV = "${AUTOREV}"
 SRCBRANCH ?= "rockchip-2.4.74"
 SRC_URI = "git://github.com/rockchip-linux/libdrm-rockchip.git;branch=${SRCBRANCH}"
-
+SRCREV = "${AUTOREV}"
 S = "${WORKDIR}/git"
 
 inherit autotools pkgconfig
 
 EXTRA_OECONF += "--disable-cairo-tests \
-                 --enable-omap-experimental-api \
-                 --enable-install-test-programs \
-                 --disable-manpages \
-                 --disable-valgrind \
+				 --enable-omap-experimental-api \
+				 --enable-install-test-programs \
+				 --disable-manpages \
+				 --disable-valgrind \
 				 --enable-rockchip-experimental-api \
-                "
+				"
 
 ALLOW_EMPTY_${PN}-drivers = "1"
 PACKAGES =+ "${PN}-tests ${PN}-drivers ${PN}-radeon ${PN}-nouveau ${PN}-omap \
-             ${PN}-intel ${PN}-exynos ${PN}-kms ${PN}-freedreno ${PN}-amdgpu \
+			 ${PN}-intel ${PN}-exynos ${PN}-kms ${PN}-freedreno ${PN}-amdgpu \
 			 ${PN}-rockchip "
 
 RRECOMMENDS_${PN}-drivers = "${PN}-radeon ${PN}-nouveau ${PN}-omap ${PN}-intel \
-                             ${PN}-exynos ${PN}-freedreno ${PN}-amdgpu ${PN}-rockchip"
+							 ${PN}-exynos ${PN}-freedreno ${PN}-amdgpu ${PN}-rockchip"
 
 FILES_${PN}-tests = "${bindir}/*"
 FILES_${PN}-radeon = "${libdir}/libdrm_radeon.so.*"

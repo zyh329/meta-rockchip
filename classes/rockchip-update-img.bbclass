@@ -8,9 +8,9 @@ inherit image_types
 IMAGE_TYPEDEP_rockchip-update-img = "ext4"
 
 IMAGE_DEPENDS_rockchip-update-img  = " \
-    rk-binary-loader \
-    rk-binary-native \
-    virtual/kernel:do_deploy"
+	rk-binary-loader \
+	rk-binary-native \
+	virtual/kernel:do_deploy"
 
 FIRMWARE_VER ?= "1.0"
 MANUFACTURER ?= "Rockchip"
@@ -32,11 +32,11 @@ KERNEL_IMG   = "kernel.img"
 RESOURCE_IMG   = "resource.img"
 
 IMAGE_CMD_rockchip-update-img () {
-    # Change to image directory
-    cd ${DEPLOY_DIR_IMAGE}
+	# Change to image directory
+	cd ${DEPLOY_DIR_IMAGE}
 
-    # Create parameter
-    cat > ${PARAMETER} << EOF
+	# Create parameter
+	cat > ${PARAMETER} << EOF
 FIRMWARE_VER:${FIRMWARE_VER}
 MACHINE_MODEL:${MACHINE}
 MACHINE_ID:007
@@ -50,10 +50,10 @@ PWR_HLD: 0,0,A,0,1
 CMDLINE:${CMDLINE} initrd=0x62000000,0x00800000 mtdparts=rk29xxnand:${MTDPARTS}
 EOF
 
-    # Create kernel.img
-    mkkrnlimg ${KERNEL_IMAGETYPE} ${KERNEL_IMG}
+	# Create kernel.img
+	mkkrnlimg ${KERNEL_IMAGETYPE} ${KERNEL_IMG}
 
-    # Create resource.img
+	# Create resource.img
 	for DTS_FILE in ${KERNEL_DEVICETREE}; do
 		DTS_FILE=${DTS_FILE##*/}
 		resource_tool  ${KERNEL_IMAGETYPE}-${DTS_FILE}
