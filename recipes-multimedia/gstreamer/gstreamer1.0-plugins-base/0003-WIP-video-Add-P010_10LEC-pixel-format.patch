@@ -1,0 +1,205 @@
+From f17e729e5605c32f2490e36dd426dbd09b7aedc3 Mon Sep 17 00:00:00 2001
+From: ayaka <ayaka@soulik.info>
+Date: Sun, 26 Mar 2017 04:54:42 +0800
+Subject: [PATCH] [WIP]: video: Add P010_10LEC pixel format
+
+This pixel format is a variant of P010_10LE, without any filled
+bits between pixels in a stride.
+
+Signed-off-by: ayaka <ayaka@soulik.info>
+---
+ gst-libs/gst/video/video-converter.c |  1 +
+ gst-libs/gst/video/video-format.c    | 99 ++++++++++++++++++++++++++++++++++++
+ gst-libs/gst/video/video-format.h    |  4 +-
+ gst-libs/gst/video/video-info.c      | 10 ++++
+ 4 files changed, 113 insertions(+), 1 deletion(-)
+
+diff --git a/gst-libs/gst/video/video-converter.c b/gst-libs/gst/video/video-converter.c
+index b21f9e6..8a34302 100644
+--- a/gst-libs/gst/video/video-converter.c
++++ b/gst-libs/gst/video/video-converter.c
+@@ -5880,6 +5880,7 @@ get_scale_format (GstVideoFormat format, gint plane)
+     case GST_VIDEO_FORMAT_A444_10LE:
+     case GST_VIDEO_FORMAT_P010_10BE:
+     case GST_VIDEO_FORMAT_P010_10LE:
++    case GST_VIDEO_FORMAT_P010_10LEC:
+       res = format;
+       g_assert_not_reached ();
+       break;
+diff --git a/gst-libs/gst/video/video-format.c b/gst-libs/gst/video/video-format.c
+index 6117e7e..aee2e1a 100644
+--- a/gst-libs/gst/video/video-format.c
++++ b/gst-libs/gst/video/video-format.c
+@@ -25,6 +25,7 @@
+ 
+ #include <string.h>
+ #include <stdio.h>
++#include <gst/base/gstbitreader.h>
+ 
+ #include "video-format.h"
+ #include "video-orc.h"
+@@ -4533,6 +4534,102 @@ pack_P010_10LE (const GstVideoFormatInfo * info, GstVideoPackFlags flags,
+   }
+ }
+ 
++#define PACK_P010_10LEC GST_VIDEO_FORMAT_AYUV64, unpack_P010_10LEC, 1, pack_P010_10LEC
++static void
++unpack_P010_10LEC (const GstVideoFormatInfo * info, GstVideoPackFlags flags,
++    gpointer dest, const gpointer data[GST_VIDEO_MAX_PLANES],
++    const gint stride[GST_VIDEO_MAX_PLANES], gint x, gint y, gint width)
++{
++  int i;
++  gint uv = GET_UV_420 (y, flags);
++  GstBitReader *sy = NULL;
++  GstBitReader *suv = NULL;
++  guint16 *restrict d = dest;
++  guint16 Y0, Y1, U, V;
++  const gpointer y_src = GET_PLANE_LINE (0, y);
++  const gpointer uv_src = GET_PLANE_LINE (1, uv);
++
++  sy = gst_bit_reader_new (y_src, (x + width) * 10 / 8);
++  suv = gst_bit_reader_new (uv_src, (x + width) * 10 / 8);
++
++  gst_bit_reader_set_pos (sy, x * 10);
++  gst_bit_reader_set_pos (suv, (x & ~1) * 10);
++
++  for (i = 0; i < width / 2; i++) {
++    gst_bit_reader_get_bits_uint16 (sy, &Y0, 10);
++    gst_bit_reader_get_bits_uint16 (sy, &Y1, 10);
++
++    gst_bit_reader_get_bits_uint16 (suv, &U, 10);
++    gst_bit_reader_get_bits_uint16 (suv, &V, 10);
++    Y0 = Y0 << 6;
++    Y1 = Y1 << 6;
++    U = U << 6;
++    V = V << 6;
++
++    if (!(flags & GST_VIDEO_PACK_FLAG_TRUNCATE_RANGE)) {
++      Y0 |= (Y0 >> 10);
++      Y1 |= (Y1 >> 10);
++      U |= (U >> 10);
++      V |= (V >> 10);
++    }
++
++    d[i * 8 + 0] = 0xffff;
++    d[i * 8 + 1] = Y0;
++    d[i * 8 + 2] = U;
++    d[i * 8 + 3] = V;
++    d[i * 8 + 4] = 0xffff;
++    d[i * 8 + 5] = Y1;
++    d[i * 8 + 6] = U;
++    d[i * 8 + 7] = V;
++  }
++
++  gst_bit_reader_free (sy);
++  gst_bit_reader_free (suv);
++}
++
++static void
++pack_P010_10LEC (const GstVideoFormatInfo * info, GstVideoPackFlags flags,
++    const gpointer src, gint sstride, gpointer data[GST_VIDEO_MAX_PLANES],
++    const gint stride[GST_VIDEO_MAX_PLANES], GstVideoChromaSite chroma_site,
++    gint y, gint width)
++{
++  int i;
++  gint uv = GET_UV_420 (y, flags);
++  guint16 Y0, Y1, U, V;
++  /* TODO */
++#if 0
++  if (IS_CHROMA_LINE_420 (y, flags)) {
++    for (i = 0; i < width / 2; i++) {
++      Y0 = s[i * 8 + 1] & 0xffc0;
++      Y1 = s[i * 8 + 5] & 0xffc0;
++      U = s[i * 8 + 2] & 0xffc0;
++      V = s[i * 8 + 3] & 0xffc0;
++
++      GST_WRITE_UINT16_LE (dy + i * 2 + 0, Y0);
++      GST_WRITE_UINT16_LE (dy + i * 2 + 1, Y1);
++      GST_WRITE_UINT16_LE (duv + i * 2 + 0, U);
++      GST_WRITE_UINT16_LE (duv + i * 2 + 1, V);
++    }
++    if (width & 1) {
++      gint i = width - 1;
++
++      Y0 = s[i * 4 + 1] & 0xffc0;
++      U = s[i * 4 + 2] & 0xffc0;
++      V = s[i * 4 + 3] & 0xffc0;
++
++      GST_WRITE_UINT16_LE (dy + i, Y0);
++      GST_WRITE_UINT16_LE (duv + i + 0, U);
++      GST_WRITE_UINT16_LE (duv + i + 1, V);
++    }
++  } else {
++    for (i = 0; i < width; i++) {
++      Y0 = s[i * 4 + 1] & 0xffc0;
++      GST_WRITE_UINT16_LE (dy + i, Y0);
++    }
++  }
++#endif
++}
++
+ typedef struct
+ {
+   guint32 fourcc;
+@@ -4840,6 +4937,8 @@ static const VideoFormat formats[] = {
+       PSTR222, PLANE012, OFFS0, SUB444, PACK_Y444_12BE),
+   MAKE_YUV_LE_FORMAT (Y444_12LE, "raw video", 0x00000000, DPTH12_12_12,
+       PSTR222, PLANE012, OFFS0, SUB444, PACK_Y444_12LE),
++  MAKE_YUV_C_FORMAT (P010_10LEC, "raw video", 0x00000000, DPTH10_10_10,
++      PSTR0, PLANE011, OFFS0, SUB420, PACK_P010_10LEC),
+ };
+ 
+ static GstVideoFormat
+diff --git a/gst-libs/gst/video/video-format.h b/gst-libs/gst/video/video-format.h
+index 5b651bc..c65a0a7 100644
+--- a/gst-libs/gst/video/video-format.h
++++ b/gst-libs/gst/video/video-format.h
+@@ -110,6 +110,7 @@ G_BEGIN_DECLS
+  * @GST_VIDEO_FORMAT_I422_12LE: planar 4:2:2 YUV, 12 bits per channel (Since: 1.12)
+  * @GST_VIDEO_FORMAT_Y444_12BE: planar 4:4:4 YUV, 12 bits per channel (Since: 1.12)
+  * @GST_VIDEO_FORMAT_Y444_12LE: planar 4:4:4 YUV, 12 bits per channel (Since: 1.12)
++ * @GST_VIDEO_FORMAT_P010_10LEC: planar 4:2:0 YUV with interleaved UV plane, 10 bits per channel, a compat variant of P010
+  *
+  * Enum value describing the most common video formats.
+  */
+@@ -192,6 +193,7 @@ typedef enum {
+   GST_VIDEO_FORMAT_I422_12LE,
+   GST_VIDEO_FORMAT_Y444_12BE,
+   GST_VIDEO_FORMAT_Y444_12LE,
++  GST_VIDEO_FORMAT_P010_10LEC,
+ } GstVideoFormat;
+ 
+ #define GST_VIDEO_MAX_PLANES 4
+@@ -533,7 +535,7 @@ gconstpointer  gst_video_format_get_palette          (GstVideoFormat format, gsi
+   "A420_10LE, A422_10BE, A422_10LE, A444_10BE, A444_10LE, NV61, P010_10BE, " \
+   "P010_10LE, IYU2, VYUY, GBRA, GBRA_10BE, GBRA_10LE, GBR_12BE, GBR_12LE, " \
+   "GBRA_12BE, GBRA_12LE, I420_12BE, I420_12LE, I422_12BE, I422_12LE, " \
+-  "Y444_12BE, Y444_12LE }"
++  "Y444_12BE, Y444_12LE, P010_10LEC }"
+ 
+ /**
+  * GST_VIDEO_CAPS_MAKE:
+diff --git a/gst-libs/gst/video/video-info.c b/gst-libs/gst/video/video-info.c
+index 7685b0e..9f33385 100644
+--- a/gst-libs/gst/video/video-info.c
++++ b/gst-libs/gst/video/video-info.c
+@@ -1006,6 +1006,16 @@ fill_planes (GstVideoInfo * info)
+       cr_h = GST_ROUND_UP_2 (height) / 2;
+       info->size = info->offset[1] + info->stride[0] * cr_h;
+       break;
++    case GST_VIDEO_FORMAT_P010_10LEC:
++      info->stride[0] = GST_ROUND_UP_64 (width * 10 / 8);
++      info->stride[1] = info->stride[0];
++      info->offset[0] = 0;
++      info->offset[1] = info->stride[0] * GST_ROUND_UP_16 (height);
++      cr_h = GST_ROUND_UP_16 (height) / 2;
++      if (GST_VIDEO_INFO_IS_INTERLACED (info))
++        cr_h = GST_ROUND_UP_16 (cr_h);
++      info->size = info->offset[1] + info->stride[0] * cr_h;
++      break;
+ 
+     case GST_VIDEO_FORMAT_ENCODED:
+       break;
+-- 
+2.7.4
+
