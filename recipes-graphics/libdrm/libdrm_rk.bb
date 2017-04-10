@@ -9,7 +9,7 @@ DEPENDS = "libpthread-stubs udev libpciaccess"
 
 SRCBRANCH ?= "rockchip-2.4.74"
 SRC_URI = "git://github.com/rockchip-linux/libdrm-rockchip.git;branch=${SRCBRANCH}"
-SRCREV = "${AUTOREV}"
+SRCREV = "fde97735848fe63934c76a5ae579f9a915959db5"
 S = "${WORKDIR}/git"
 
 inherit autotools pkgconfig

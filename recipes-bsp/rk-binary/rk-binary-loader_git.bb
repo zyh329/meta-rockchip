@@ -7,7 +7,7 @@ NO_GENERIC_LICENSE[BINARY] = "LICENSE.TXT"
 DEPENDS = "rk-binary-native"
 
 SRC_URI = "git://github.com/rockchip-linux/rkbin.git"
-SRCREV = "${AUTOREV}"
+SRCREV = "7b3142bfc7b43709b2d09ca00faf85b36f8f74a4"
 S = "${WORKDIR}/git"
 
 LOADER_rk3036 ?= "rk30/rk3036_loader_v1.07.219.bin"
