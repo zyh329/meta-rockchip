@@ -19,6 +19,10 @@ SRC_URI += " \
     file://0012-Makefile.am-don-t-hardcode-libtool-name-when-running.patch \
 "
 
+EXTRA_OECONF += " \
+    --enable-kms \
+"
+
 FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
 FILESPATH_prepend := "${THISDIR}/${PN}:"
 
