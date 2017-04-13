@@ -15,9 +15,9 @@ SRC_URI = "https://wayland.freedesktop.org/releases/${BPN}-${PV}.tar.xz \
 "
 
 SRC_URI += " \
-           file://1001-gl-renderer-add-WL_SHM_FORMAT_YUV420-WL_SHM_FORMAT_N.patch \
-           file://1002-compositor-set-DEFAULT_REPAINT_WINDOW-15.patch \
-           file://1003-weston-support-drm-nv12_10-video-overlay.patch \
+           file://1001-os-compatibility-define-CLOCK_BOOTTIME-when-not-avai.patch \
+           file://1002-clients-weston-info-print-unknown-formats-better.patch \
+           file://1003-compositor-set-DEFAULT_REPAINT_WINDOW-15.patch \
 "
 
 SRC_URI[md5sum] = "15f38945942bf2a91fe2687145fb4c7d"
